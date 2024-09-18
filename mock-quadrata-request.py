@@ -5,7 +5,7 @@ import json
 import requests
 
 # Replace with your Quadrata webhook secret
-QUADRATA_WEBHOOK_SECRET = 'your_quadrata_webhook_secret'
+QUADRATA_WEBHOOK_SECRET = 'QUADRATA_WEBHOOK_SECRET'
 
 
 def generate_mock_data():
