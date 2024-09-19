@@ -8,6 +8,7 @@ from datetime import datetime
 import os
 import ipaddress
 import logging
+import argparse
 
 app = Flask(__name__)
 Talisman(app)  # Adds HTTPS and security headers
@@ -17,11 +18,27 @@ logging.basicConfig(level=logging.DEBUG)  # Set the logging level to DEBUG
 logger = logging.getLogger('werkzeug')  # Get the default Flask logger
 logger.setLevel(logging.DEBUG)
 
-# Get secrets and configuration from environment variables
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description='Run the Discordata Flask application.')
+parser.add_argument('--host', type=str, default=os.environ.get('HOST', '0.0.0.0'),
+                    help='The IP address to bind to (default: from HOST env var or 0.0.0.0)')
+parser.add_argument('--port', type=int, default=int(os.environ.get('PORT', 1276)),
+                    help='The port number to listen on (default: from PORT env var or 1276)')
+parser.add_argument('--cert', type=str, default=os.environ.get('CERT_PATH', 'certs/cert.pem'),
+                    help='Path to the SSL certificate file (default: from CERT_PATH env var)')
+parser.add_argument('--key', type=str, default=os.environ.get('KEY_PATH', 'certs/key.pem'),
+                    help='Path to the SSL key file (default: from KEY_PATH env var)')
+args = parser.parse_args()
+
+# Use command-line arguments or environment variables for configurations
+host = args.host
+port = args.port
+cert_path = args.cert
+key_path = args.key
+
+# Get secrets from environment variables
 QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
-PORT = int(os.environ.get('PORT', 1276))
-HOST = os.environ.get('HOST', '0.0.0.0')
 
 # Get allowed IPs from environment variable
 # Example format: "192.168.1.1,10.0.0.0/24"
@@ -143,5 +160,5 @@ def send_to_discord(message):
         logger.error(f'Failed to send message to Discord: {response.text}')
 
 if __name__ == '__main__':
-    # Run the Flask app with the environment variable configurations
-    app.run(ssl_context=('certs/cert.pem', 'certs/key.pem'), host=HOST, port=PORT)
+    # Run the Flask app with command-line arguments or environment variable configurations
+    app.run(ssl_context=(cert_path, key_path), host=host, port=port)

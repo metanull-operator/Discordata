@@ -21,3 +21,4 @@ EXPOSE ${PORT}
 
 # Run the Flask app using environment variables for configuration
 ENTRYPOINT ["python", "discordata.py"]
+CMD ["--key", "/certs/key.pem", "--cert", "/certs/cert.pem"]
