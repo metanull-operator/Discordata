@@ -8,6 +8,7 @@ import os
 import ipaddress
 
 app = Flask(__name__)
+Talisman(app)  # Adds HTTPS and security headers
 
 # Get secrets and configuration from environment variables
 QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
@@ -126,4 +127,4 @@ def send_to_discord(message):
 
 if __name__ == '__main__':
     # Run the Flask app with the environment variable configurations
-    app.run(host=HOST, port=PORT)
+    app.run(ssl_context=('certs/cert.pem', 'certs/key.pem'), host=HOST, port=PORT)
