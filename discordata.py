@@ -5,17 +5,25 @@ import json
 import requests
 from datetime import datetime
 import os
+import ipaddress
 
 app = Flask(__name__)
 
-# Get secrets and configuration from environment variables with default fallbacks
-QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET', 'default_secret')
-DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', 'https://example.com/default_webhook')
+# Get secrets and configuration from environment variables
+QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
+DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
 PORT = int(os.environ.get('PORT', 1276))
 HOST = os.environ.get('HOST', '0.0.0.0')
 
-# Check that the required secrets are provided; using default values for demonstration.
-if QUADRATA_WEBHOOK_SECRET == 'default_secret' or DISCORD_WEBHOOK_URL == 'https://example.com/default_webhook':
+# Get allowed IPs from environment variable
+# Example format: "192.168.1.1,10.0.0.0/24"
+ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '0.0.0.0/0')  # Allow all by default
+
+# Parse allowed IPs into a list of ipaddress objects
+allowed_ips = [ipaddress.ip_network(ip.strip()) for ip in ALLOWED_IPS.split(',') if ip.strip()]
+
+# Check that the secrets are provided
+if not QUADRATA_WEBHOOK_SECRET or not DISCORD_WEBHOOK_URL:
     raise Exception("Missing QUADRATA_WEBHOOK_SECRET or DISCORD_WEBHOOK_URL environment variables")
 
 def verify_quadrata_signature(request):
@@ -32,6 +40,18 @@ def verify_quadrata_signature(request):
     ).hexdigest()
 
     return hmac.compare_digest(computed_signature, signature)
+
+def is_ip_allowed(ip):
+    """Check if the provided IP address is allowed."""
+    ip_addr = ipaddress.ip_address(ip)
+    return any(ip_addr in network for network in allowed_ips)
+
+@app.before_request
+def limit_remote_addr():
+    """Filter requests based on client IP address."""
+    if not is_ip_allowed(request.remote_addr):
+        # Drop the request immediately with a 403 Forbidden status
+        abort(403, description="Forbidden: Access is denied.")
 
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
