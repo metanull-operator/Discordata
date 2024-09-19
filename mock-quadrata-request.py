@@ -5,6 +5,7 @@ import json
 import requests
 import logging
 import http.client as http_client
+import os
 
 # Enable logging for requests and urllib3
 http_client.HTTPConnection.debuglevel = 1
@@ -12,9 +13,12 @@ logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("requests").setLevel(logging.DEBUG)
 logging.getLogger("urllib3").setLevel(logging.DEBUG)
 
-# Replace with your Quadrata webhook secret
-QUADRATA_WEBHOOK_SECRET = 'QUADRATA_WEBHOOK_SECRET'
+# Get Quadrata webhook secret from environment variable
+QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
 
+# Check if the secret is provided
+if not QUADRATA_WEBHOOK_SECRET:
+    raise Exception("Missing QUADRATA_WEBHOOK_SECRET environment variable")
 
 def generate_mock_data():
     """Generate mock webhook data per Quadrata's webhook specifications."""
@@ -33,7 +37,6 @@ def generate_mock_data():
       ]
     }
 
-
 def create_signature(secret, data):
     """Generate HMAC SHA256 signature for the request."""
     return hmac.new(
@@ -41,7 +44,6 @@ def create_signature(secret, data):
         data.encode(),
         hashlib.sha256
     ).hexdigest()
-
 
 def send_mock_webhook(url, cert_path=None):
     """Send a mock webhook request to the given URL with detailed logging."""
@@ -62,7 +64,6 @@ def send_mock_webhook(url, cert_path=None):
         print('Mock webhook sent successfully.')
     else:
         print(f'Failed to send mock webhook: {response.status_code} {response.text}')
-
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
