@@ -1,4 +1,4 @@
-# discordata
+# Discordata
 Discordata is a simple bridge between incoming Quadrata webhook
 requests and outgoing Discord webhook requests. Each time a
 Quadrata request is received, Discordata formats a Discord
@@ -6,6 +6,11 @@ and sends it via the Discord webhook URL.
 
 Discord data can be run as a standalone application or as a
 docker container. 
+
+By default Discordata will listen on port `1276` for requests
+to the `webhook` endpoint. Port 1276 must be opened and forwarded
+to Discordata. The URL to the webhook endpoint must be provided to
+Quadrata. For example, `http://XXX.XXX.XXX.XXX:1276/webhook/`.
 
 ## Clone the Repository
 
@@ -81,3 +86,17 @@ docker run -p 1276:1276 --env-file .env --name discordata discordata
 ```console
 ./discordata.sh
 ```
+
+# mock-quadrata-request.py
+
+`mock-quadrata-request.py` sends a fake Quadrata webhook request to the
+provided webhook URL.
+
+To run:
+
+```console
+python3 mock-quadrata-request.py http://localhost:1276/webhook
+```
+
+`mock-quadrata-request.py` will send a single request to the Discordata webhook
+URL and then exit.
