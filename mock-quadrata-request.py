@@ -3,6 +3,14 @@ import hmac
 import hashlib
 import json
 import requests
+import logging
+import http.client as http_client
+
+# Enable logging for requests and urllib3
+http_client.HTTPConnection.debuglevel = 1
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("requests").setLevel(logging.DEBUG)
+logging.getLogger("urllib3").setLevel(logging.DEBUG)
 
 # Replace with your Quadrata webhook secret
 QUADRATA_WEBHOOK_SECRET = 'QUADRATA_WEBHOOK_SECRET'
@@ -11,19 +19,19 @@ QUADRATA_WEBHOOK_SECRET = 'QUADRATA_WEBHOOK_SECRET'
 def generate_mock_data():
     """Generate mock webhook data per Quadrata's webhook specifications."""
     return {
-  "attributes": {
-    "AML": { "status": "READY", "verifiedAt": 1703207512 },
-    "COUNTRY": { "status": "IN_REVIEW", "verifiedAt": 1703207483 },
-    "DID": { "status": "IN_REVIEW", "verifiedAt": 1703207483 }
-  },
-  "eventId": "447849bc-db53-4b8d-b9ba-dbfec82839e4",
-  "nonce": "3a186e5f",
-  "timestamp": 1703207849,
-  "type": "ONBOARDING",
-  "walletAddresses": [
-    "0xB343DB0FAB970eca78422505A82294304cE8c3eb"
-  ]
-}
+      "attributes": {
+        "AML": { "status": "READY", "verifiedAt": 1703207512 },
+        "COUNTRY": { "status": "IN_REVIEW", "verifiedAt": 1703207483 },
+        "DID": { "status": "IN_REVIEW", "verifiedAt": 1703207483 }
+      },
+      "eventId": "447849bc-db53-4b8d-b9ba-dbfec82839e4",
+      "nonce": "3a186e5f",
+      "timestamp": 1703207849,
+      "type": "ONBOARDING",
+      "walletAddresses": [
+        "0xB343DB0FAB970eca78422505A82294304cE8c3eb"
+      ]
+    }
 
 
 def create_signature(secret, data):
@@ -35,8 +43,8 @@ def create_signature(secret, data):
     ).hexdigest()
 
 
-def send_mock_webhook(url):
-    """Send a mock webhook request to the given URL."""
+def send_mock_webhook(url, cert_path=None):
+    """Send a mock webhook request to the given URL with detailed logging."""
     data = generate_mock_data()
     payload = json.dumps(data)
 
@@ -47,8 +55,8 @@ def send_mock_webhook(url):
         'Quadrata-Signature': signature
     }
 
-    # Send the POST request
-    response = requests.post(url, headers=headers, data=payload)
+    # Send the POST request with SSL verification
+    response = requests.post(url, headers=headers, data=payload, verify=cert_path or True)
 
     if response.status_code == 200:
         print('Mock webhook sent successfully.')

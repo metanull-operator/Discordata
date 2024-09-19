@@ -7,9 +7,15 @@ import requests
 from datetime import datetime
 import os
 import ipaddress
+import logging
 
 app = Flask(__name__)
 Talisman(app)  # Adds HTTPS and security headers
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)  # Set the logging level to DEBUG
+logger = logging.getLogger('werkzeug')  # Get the default Flask logger
+logger.setLevel(logging.DEBUG)
 
 # Get secrets and configuration from environment variables
 QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
@@ -51,21 +57,31 @@ def is_ip_allowed(ip):
 @app.before_request
 def limit_remote_addr():
     """Filter requests based on client IP address."""
-    if not is_ip_allowed(request.remote_addr):
+    client_ip = request.remote_addr
+    if not is_ip_allowed(client_ip):
+        # Log unauthorized access attempts
+        logger.warning(f"Unauthorized access attempt from IP: {client_ip}")
         # Drop the request immediately with a 403 Forbidden status
         abort(403, description="Forbidden: Access is denied.")
 
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
     """Endpoint to receive webhook data from Quadrata."""
+    # Log the incoming request details
+    logger.debug(f"Received request from {request.remote_addr}")
+    logger.debug(f"Headers: {request.headers}")
+    logger.debug(f"Body: {request.data}")
+
     # Verify the request signature
     if not verify_quadrata_signature(request):
+        logger.warning(f"Invalid signature from IP: {request.remote_addr}")
         abort(400, 'Invalid signature')
 
     # Parse the JSON payload
     try:
         data = request.get_json()
     except Exception:
+        logger.error("Invalid JSON payload")
         abort(400, 'Invalid JSON payload')
 
     # Process the data and create a human-friendly message
@@ -124,7 +140,7 @@ def send_to_discord(message):
     }
     response = requests.post(DISCORD_WEBHOOK_URL, json=payload, headers=headers)
     if response.status_code != 204:
-        print('Failed to send message to Discord:', response.text)
+        logger.error(f'Failed to send message to Discord: {response.text}')
 
 if __name__ == '__main__':
     # Run the Flask app with the environment variable configurations
