@@ -103,6 +103,12 @@ Otherwise, place your organization's `cert.pem` and `key.pem` file in the `certs
 
 ## Standalone
 
+### Install Python Packages
+
+```console
+pip3 install flask flask-talisman requests
+```
+
 ### Run discordata.sh
 
 ```console
