@@ -71,7 +71,7 @@ Run the following docker command, mapping your desired external port to
 the value of the `PORT` environment variable:
 
 ```console
-docker run -p 1276:1276 --env-file .env --name discordata discordata -d
+docker run -p 1276:1276 --env-file .env --name discordata -d discordata
 ```
 
 ## Standalone
