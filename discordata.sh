@@ -2,4 +2,4 @@
 export $(cat .env | xargs)
 
 # Run the discordata binary
-./discordata
+/usr/bin/python3 discordata.py
