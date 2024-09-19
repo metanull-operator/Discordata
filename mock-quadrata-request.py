@@ -63,7 +63,7 @@ def send_mock_webhook(url, cert_path=None):
         'Quadrata-Signature': signature
     }
 
-    response = requests.post(url, headers=headers, data=payload, False)
+    response = requests.post(url, headers=headers, data=payload)
 
     if response.status_code == 200:
         print('Mock webhook sent successfully.')
