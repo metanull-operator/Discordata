@@ -4,14 +4,17 @@ import hashlib
 import json
 import requests
 from datetime import datetime
+import os  # Import os module
 
 app = Flask(__name__)
 
-# Replace with your Quadrata webhook secret
-QUADRATA_WEBHOOK_SECRET = 'QUADRATA_WEBHOOK_SECRET'
+# Get secrets from environment variables
+QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
+DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
 
-# Replace with your Discord webhook URL
-DISCORD_WEBHOOK_URL = 'DISCORD_WEBHOOK_URL'
+# Check that the secrets are provided
+if not QUADRATA_WEBHOOK_SECRET or not DISCORD_WEBHOOK_URL:
+    raise Exception("Missing QUADRATA_WEBHOOK_SECRET or DISCORD_WEBHOOK_URL environment variables")
 
 def verify_quadrata_signature(request):
     """Verify the Quadrata webhook request signature."""
