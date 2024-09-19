@@ -21,4 +21,3 @@ EXPOSE ${PORT}
 
 # Run the Flask app using environment variables for configuration
 ENTRYPOINT ["python", "discordata.py"]
-CMD ["--host=0.0.0.0", "--port=${PORT}"]

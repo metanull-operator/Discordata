@@ -5,16 +5,17 @@ import json
 import requests
 from datetime import datetime
 import os
-import argparse
 
 app = Flask(__name__)
 
-# Get secrets and configuration from environment variables
-QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
-DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
+# Get secrets and configuration from environment variables with default fallbacks
+QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET', 'default_secret')
+DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', 'https://example.com/default_webhook')
+PORT = int(os.environ.get('PORT', 1276))
+HOST = os.environ.get('HOST', '0.0.0.0')
 
-# Check that the secrets are provided
-if not QUADRATA_WEBHOOK_SECRET or not DISCORD_WEBHOOK_URL:
+# Check that the required secrets are provided; using default values for demonstration.
+if QUADRATA_WEBHOOK_SECRET == 'default_secret' or DISCORD_WEBHOOK_URL == 'https://example.com/default_webhook':
     raise Exception("Missing QUADRATA_WEBHOOK_SECRET or DISCORD_WEBHOOK_URL environment variables")
 
 def verify_quadrata_signature(request):
@@ -104,11 +105,5 @@ def send_to_discord(message):
         print('Failed to send message to Discord:', response.text)
 
 if __name__ == '__main__':
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(description='Run the Discordata Flask application.')
-    parser.add_argument('--host', type=str, default='0.0.0.0', help='The IP address to bind to.')
-    parser.add_argument('--port', type=int, default=1276, help='The port number to listen on.')
-    args = parser.parse_args()
-
-    # Run the Flask app with the provided host and port
-    app.run(host=args.host, port=args.port)
+    # Run the Flask app with the environment variable configurations
+    app.run(host=HOST, port=PORT)
