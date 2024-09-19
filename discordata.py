@@ -4,7 +4,8 @@ import hashlib
 import json
 import requests
 from datetime import datetime
-import os  # Import os module
+import os
+import argparse
 
 app = Flask(__name__)
 
@@ -103,4 +104,11 @@ def send_to_discord(message):
         print('Failed to send message to Discord:', response.text)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Run the Discordata Flask application.')
+    parser.add_argument('--host', type=str, default='0.0.0.0', help='The IP address to bind to.')
+    parser.add_argument('--port', type=int, default=1276, help='The port number to listen on.')
+    args = parser.parse_args()
+
+    # Run the Flask app with the provided host and port
+    app.run(host=args.host, port=args.port)
