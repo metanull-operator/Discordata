@@ -23,7 +23,7 @@ if not QUADRATA_WEBHOOK_SECRET:
 # Set up argument parser for cert paths
 parser = argparse.ArgumentParser(description='Send mock webhook requests to a specified URL.')
 parser.add_argument('--cert', type=str, default=os.environ.get('CERT_PATH', 'certs/cert.pem', help='Path to the SSL certificate for verification')
-parser.add_argument('url', type=str, default='http://localhost:1276/webhook', help='The Discordata webhook URL to send the mock data to')
+parser.add_argument('url', type=str, default='https://localhost:1276/webhook', help='The Discordata webhook URL to send the mock data to')
 args = parser.parse_args()
 
 def generate_mock_data():
