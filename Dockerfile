@@ -13,11 +13,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code to /app
 COPY . .
 
-# Define environment variable for the port
+# Set default environment variables
 ENV PORT=1276
 
-# Expose the port based on the environment variable
+# Expose the port defined in the environment variable
 EXPOSE ${PORT}
 
-# Run discordata.py with the specified command-line arguments
-CMD ["python", "discordata.py", "--host=0.0.0.0", "--port=${PORT}"]
+# Run the Flask app using environment variables for configuration
+ENTRYPOINT ["python", "discordata.py"]
+CMD ["--host=0.0.0.0", "--port=${PORT}"]

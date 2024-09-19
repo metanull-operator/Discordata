@@ -9,7 +9,7 @@ import argparse
 
 app = Flask(__name__)
 
-# Get secrets from environment variables
+# Get secrets and configuration from environment variables
 QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
 
