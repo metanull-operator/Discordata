@@ -26,6 +26,17 @@ Change directory into the Discordata repository:
 cd discordata
 ```
 
+## Generate Certificate
+
+If you want to use a self-signed certificate, generate the certificate and key.
+Adjust `-days` to the appropriate length of time your certificate should be valid.
+
+```console
+cd certs
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+cd ..
+```
+
 ## Environment Variables
 
 ### Required Environment Variables
@@ -72,14 +83,31 @@ docker build -t discordata .
 
 ### Run Docker Container
 
-Run the following docker command, mapping your desired external port to
-the value of the `PORT` environment variable:
+Run the following docker command, making the appropriate substitutions:
+
+- Substitute `<PATH_TO_REPO>` with the absolute path to your Discordata repository'
+- Change the external container port 1276 with another port, if necessary.
+  For example `-p 5000:1276`.
 
 ```console
-docker run -p 1276:1276 --env-file .env --name discordata discordata
+docker run \
+    -p 1276:1276 \
+    --env-file .env \
+    --name discordata \
+    -v <PATH_TO_REPO>/certs/cert.pem:/certs/cert.pem \
+    -v <PATH_TO_REPO>/certs/key.pem:/certs/key.pem \
+    discordata
 ```
 
+Otherwise, place your organization's `cert.pem` and `key.pem` file in the `certs/` directory.
+
 ## Standalone
+
+### Install Python Packages
+
+```console
+pip3 install flask flask-talisman requests
+```
 
 ### Run discordata.sh
 
