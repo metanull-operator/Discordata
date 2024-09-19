@@ -81,5 +81,3 @@ docker run -p 1276:1276 --env-file .env --name discordata discordata
 ```console
 ./discordata.sh
 ```
-
-`CTRL-C` will be required to quite discordata.
