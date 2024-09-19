@@ -162,5 +162,5 @@ cython_debug/
 .idea/
 
 # Ignore SSL certificates and private keys
-cert.pem
-key.pem
+certs/
+*.pem
