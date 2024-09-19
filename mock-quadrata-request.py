@@ -1,4 +1,3 @@
-import sys
 import hmac
 import hashlib
 import json
@@ -6,6 +5,7 @@ import requests
 import logging
 import http.client as http_client
 import os
+import argparse
 
 # Enable logging for requests and urllib3
 http_client.HTTPConnection.debuglevel = 1
@@ -19,6 +19,12 @@ QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
 # Check if the secret is provided
 if not QUADRATA_WEBHOOK_SECRET:
     raise Exception("Missing QUADRATA_WEBHOOK_SECRET environment variable")
+
+# Set up argument parser for cert paths
+parser = argparse.ArgumentParser(description='Send mock webhook requests to a specified URL.')
+parser.add_argument('--cert', type=str, default=os.environ.get('CERT_PATH', 'certs/cert.pem', help='Path to the SSL certificate for verification')
+parser.add_argument('url', type=str, default='http://localhost:1276/webhook', help='The Discordata webhook URL to send the mock data to')
+args = parser.parse_args()
 
 def generate_mock_data():
     """Generate mock webhook data per Quadrata's webhook specifications."""
@@ -57,7 +63,6 @@ def send_mock_webhook(url, cert_path=None):
         'Quadrata-Signature': signature
     }
 
-    # Send the POST request with SSL verification
     response = requests.post(url, headers=headers, data=payload, verify=cert_path or True)
 
     if response.status_code == 200:
@@ -65,10 +70,6 @@ def send_mock_webhook(url, cert_path=None):
     else:
         print(f'Failed to send mock webhook: {response.status_code} {response.text}')
 
-if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print("Usage: python mock_webhook.py <webhook_url>")
-        sys.exit(1)
 
-    webhook_url = sys.argv[1]
-    send_mock_webhook(webhook_url)
+if __name__ == '__main__':
+    send_mock_webhook(args.url, cert_path=args.cert)
