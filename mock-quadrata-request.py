@@ -20,9 +20,7 @@ QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
 if not QUADRATA_WEBHOOK_SECRET:
     raise Exception("Missing QUADRATA_WEBHOOK_SECRET environment variable")
 
-# Set up argument parser for cert paths
 parser = argparse.ArgumentParser(description='Send mock webhook requests to a specified URL.')
-parser.add_argument('--cert', type=str, default=os.environ.get('CERT_PATH', 'certs/cert.pem'), help='Path to the SSL certificate for verification')
 parser.add_argument('--url', type=str, default='https://localhost:1276/webhook', help='The Discordata webhook URL to send the mock data to')
 args = parser.parse_args()
 
@@ -51,7 +49,7 @@ def create_signature(secret, data):
         hashlib.sha256
     ).hexdigest()
 
-def send_mock_webhook(url, cert_path=None):
+def send_mock_webhook(url):
     """Send a mock webhook request to the given URL with detailed logging."""
     data = generate_mock_data()
     payload = json.dumps(data)
@@ -72,4 +70,4 @@ def send_mock_webhook(url, cert_path=None):
 
 
 if __name__ == '__main__':
-    send_mock_webhook(args.url, cert_path=args.cert)
+    send_mock_webhook(args.url)
