@@ -7,6 +7,8 @@ import http.client as http_client
 import os
 import argparse
 
+HMAC_HEADER_NAME = 'x-payload-digest'
+
 # Enable logging for requests and urllib3
 http_client.HTTPConnection.debuglevel = 1
 logging.basicConfig(level=logging.DEBUG)
@@ -14,18 +16,18 @@ logging.getLogger("requests").setLevel(logging.DEBUG)
 logging.getLogger("urllib3").setLevel(logging.DEBUG)
 
 # Get Quadrata webhook secret from environment variable
-QUADRATA_WEBHOOK_SECRET = os.environ.get('QUADRATA_WEBHOOK_SECRET')
+WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
 
 # Check if the secret is provided
-if not QUADRATA_WEBHOOK_SECRET:
-    raise Exception("Missing QUADRATA_WEBHOOK_SECRET environment variable")
+if not WEBHOOK_SECRET:
+    raise Exception("Missing WEBHOOK_SECRET environment variable")
 
 parser = argparse.ArgumentParser(description='Send mock webhook requests to a specified URL.')
 parser.add_argument('--url', type=str, default='https://localhost:1276/webhook', help='The Discordata webhook URL to send the mock data to')
 args = parser.parse_args()
 
 def generate_mock_data():
-    """Generate mock webhook data per Quadrata's webhook specifications."""
+    """Generate mock webhook data per Sumsub's webhook specifications."""
     return {
         "applicantId": "5c9e177b0a975a6eeccf5960",
         "inspectionId": "5c9e177b0a975a6eeccf5961",
@@ -53,10 +55,10 @@ def send_mock_webhook(url):
     payload = json.dumps(data)
 
     # Create a signature header
-    signature = create_signature(QUADRATA_WEBHOOK_SECRET, payload)
+    signature = create_signature(WEBHOOK_SECRET, payload)
     headers = {
         'Content-Type': 'application/json',
-        'Quadrata-Signature': signature
+        HMAC_HEADER_NAME: signature
     }
 
     try:
