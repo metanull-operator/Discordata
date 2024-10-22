@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("requests").setLevel(logging.DEBUG)
 logging.getLogger("urllib3").setLevel(logging.DEBUG)
 
-# Get Quadrata webhook secret from environment variable
+# Get webhook secret from environment variable
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
 
 # Check if the secret is provided

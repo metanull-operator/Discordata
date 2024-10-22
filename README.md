@@ -1,7 +1,7 @@
 # Discordata
-Discordata is a simple bridge between incoming Quadrata webhook
+Discordata is a simple bridge between incoming KYC provider webhook
 requests and outgoing Discord webhook requests. Each time a
-Quadrata request is received, Discordata formats a Discord
+webhook request is received, Discordata formats a Discord
 and sends it via the Discord webhook URL.
 
 Discord data can be run as a standalone application or as a
@@ -10,7 +10,7 @@ docker container.
 By default Discordata will listen on port `1276` for requests
 to the `webhook` endpoint. Port 1276 must be opened and forwarded
 to Discordata. The URL to the webhook endpoint must be provided to
-Quadrata. For example, `http://XXX.XXX.XXX.XXX:1276/webhook/`.
+the KYC provider. For example, `http://XXX.XXX.XXX.XXX:1276/webhook/`.
 
 ## Clone the Repository
 
@@ -43,8 +43,8 @@ cd ..
 
 Two environment variables are required to be exported to Discordata in order to run:
 
-- `QUADRATA_WEBHOOK_SECRET` - A shared secret for secure
-  communication with Quadrata. Provided by Quadrata.
+- `WEBHOOK_SECRET` - A shared secret for secure
+  communication with the KYC provider. Provided by the KYC provider.
 - `DISCORD_WEBHOOK_URL` - The URL for the Discord webhook to be 
   used to send messages to Discord. This can be provided by the
   administrators of the Discord server.
@@ -115,16 +115,16 @@ pip3 install flask flask-talisman requests
 ./discordata.sh
 ```
 
-# mock-quadrata-request.py
+# mock-webhook-request.py
 
-`mock-quadrata-request.py` sends a fake Quadrata webhook request to the
+`mock-webhook-request.py` sends a fake webhook request to the
 provided webhook URL.
 
 To run:
 
 ```console
-python3 mock-quadrata-request.py http://localhost:1276/webhook
+python3 mock-webhook-request.py http://localhost:1276/webhook
 ```
 
-`mock-quadrata-request.py` will send a single request to the Discordata webhook
+`mock-webhook-request.py` will send a single request to the Discordata webhook
 URL and then exit.
