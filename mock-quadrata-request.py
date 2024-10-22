@@ -27,18 +27,16 @@ args = parser.parse_args()
 def generate_mock_data():
     """Generate mock webhook data per Quadrata's webhook specifications."""
     return {
-      "attributes": {
-        "AML": { "status": "READY", "verifiedAt": 1703207512 },
-        "COUNTRY": { "status": "IN_REVIEW", "verifiedAt": 1703207483 },
-        "DID": { "status": "IN_REVIEW", "verifiedAt": 1703207483 }
-      },
-      "eventId": "447849bc-db53-4b8d-b9ba-dbfec82839e4",
-      "nonce": "3a186e5f",
-      "timestamp": 1703207849,
-      "type": "ONBOARDING",
-      "walletAddresses": [
-        "0xB343DB0FAB970eca78422505A82294304cE8c3eb"
-      ]
+        "applicantId": "5c9e177b0a975a6eeccf5960",
+        "inspectionId": "5c9e177b0a975a6eeccf5961",
+        "correlationId": "req-63f92830-4d68-4eee-98d5-875d53a12258",
+        "levelName": "basic-kyc-level",
+        "externalUserId": "12672",
+        "type": "applicantCreated",
+        "sandboxMode": "false",
+        "reviewStatus": "init",
+        "createdAtMs": "2020-02-21 13:23:19.002",
+        "clientId": "coolClientId"
     }
 
 def create_signature(secret, data):
@@ -61,12 +59,18 @@ def send_mock_webhook(url):
         'Quadrata-Signature': signature
     }
 
-    response = requests.post(url, headers=headers, data=payload, verify=False)
+    try:
+        # Send POST request with SSL verification (remove `verify=False`)
+        response = requests.post(url, headers=headers, data=payload)
 
-    if response.status_code == 200:
-        print('Mock webhook sent successfully.')
-    else:
-        print(f'Failed to send mock webhook: {response.status_code} {response.text}')
+        if response.status_code == 200:
+            print('Mock webhook sent successfully.')
+        else:
+            print(f'Failed to send mock webhook: {response.status_code} {response.text}')
+    except requests.exceptions.SSLError as ssl_err:
+        print(f'SSL error occurred: {ssl_err}')
+    except Exception as e:
+        print(f'An error occurred: {e}')
 
 
 if __name__ == '__main__':
