@@ -8,6 +8,7 @@ from datetime import datetime
 import os
 import ipaddress
 import logging
+import time
 import argparse
 
 HMAC_HEADER_NAME = 'x-payload-digest'
