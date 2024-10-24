@@ -171,13 +171,15 @@ def format_message(data, app_data):
     # Convert the entire data dictionary to a human-friendly JSON string
     formatted_event = json.dumps(data, indent=4)
 
+    logger.info(json.dumps(app_data, indent=4))
+
     company_name = (app_data.get('info', {})
                              .get('companyInfo', {})
                              .get('companyName', 'Unknown Company'))
 
     # Create a formatted message with the event type, timestamp, and pretty-printed JSON
     message = (
-        f"**Company Name:** {company_name}"
+        f"**Company Name:** {company_name}\n"
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
         f"**Event Data:**\n```json\n{formatted_event}\n```"
