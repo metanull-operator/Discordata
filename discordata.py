@@ -11,6 +11,9 @@ import logging
 import argparse
 
 HMAC_HEADER_NAME = 'x-payload-digest'
+SUMSUB_BASE_URL = "https://api.sumsub.com"
+
+REQUEST_TIMEOUT = 60
 
 app = Flask(__name__)
 Talisman(app)  # Adds HTTPS and security headers
@@ -41,6 +44,8 @@ key_path = args.key
 # Get secrets from environment variables
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
+SUMSUB_SECRET_KEY = os.environ.get('SUMSUB_SECRET_KEY')
+SUMSUB_APP_TOKEN = os.environ.get('SUMSUB_APP_TOKEN')
 
 # Get allowed IPs from environment variable
 # Example format: "192.168.1.1,10.0.0.0/24"
@@ -83,6 +88,7 @@ def limit_remote_addr():
         # Drop the request immediately with a 403 Forbidden status
         abort(403, description="Forbidden: Access is denied.")
 
+
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
     """Endpoint to receive webhook data."""
@@ -99,19 +105,62 @@ def webhook_listener():
     # Parse the JSON payload
     try:
         data = request.get_json()
-    except Exception:
-        logger.error("Invalid JSON payload")
+    except Exception as e:
+        logger.error(f"Invalid JSON payload: {e}")
         abort(400, 'Invalid JSON payload')
 
+    # Check if the applicantId exists in the parsed data
+    applicant_id = data.get('applicantId')
+    if not applicant_id:
+        logger.error("Missing applicantId in the request data")
+        abort(400, 'Missing applicantId')
+
+    # Get applicant data with error handling
+    try:
+        app_data = get_applicant_data(applicant_id)
+    except Exception as e:
+        logger.error(f"Failed to retrieve applicant data for ID {applicant_id}: {e}")
+        abort(500, 'Error retrieving applicant data')
+
     # Process the data and create a human-friendly message
-    message = format_message(data)
+    message = format_message(data, app_data)
 
     # Send the message to Discord
-    send_to_discord(message)
+    try:
+        send_to_discord(message)
+    except Exception as e:
+        logger.error(f"Failed to send message to Discord: {e}")
+        abort(500, 'Failed to send message to Discord')
 
     return '', 200
 
-def format_message(data):
+
+def get_applicant_data(app_id):
+    """Retrieve applicant data from the external API."""
+    url = SUMSUB_BASE_URL + '/resources/applicants/' + app_id + '/one'
+
+    try:
+        # Sign the request
+        signed_req = sign_request(requests.Request('GET', url))
+
+        # Send the request and handle possible network issues
+        session = requests.Session()
+        response = session.send(signed_req, timeout=REQUEST_TIMEOUT)
+
+        # Check for successful response
+        response.raise_for_status()
+
+        # Return parsed JSON if the response is valid
+        return response.json()
+    except requests.exceptions.Timeout:
+        logger.error(f"Request timed out while retrieving data for applicant ID {app_id}")
+        raise
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error occurred while retrieving data for applicant ID {app_id}: {e}")
+        raise
+
+
+def format_message(data, app_data):
     """Format the webhook data into a human-friendly Discord message."""
     event_type = data.get('type', 'Unknown Event')
 
@@ -121,14 +170,44 @@ def format_message(data):
     # Convert the entire data dictionary to a human-friendly JSON string
     formatted_event = json.dumps(data, indent=4)
 
+    company_name = (app_data.get('info', {})
+                             .get('companyInfo', {})
+                             .get('companyName', 'Unknown Company'))
+
     # Create a formatted message with the event type, timestamp, and pretty-printed JSON
     message = (
+        f"**Company Name:** {company_name}"
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
         f"**Event Data:**\n```json\n{formatted_event}\n```"
     )
 
     return message
+
+def sign_request(request):
+    prep_req = request.prepare()
+
+    now = int(time.time())
+    method = request.method.upper()
+    path_url = prep_req.path_url
+
+    body = b'' if prep_req.body is None else prep_req.body
+    if type(body) == str:
+        body = body.encode('utf-8')
+
+    data = str(now).encode('utf-8') + method.encode('utf-8') + path_url.encode('utf-8') + body
+
+    signature = hmac.new(
+        SUMSUB_SECRET_KEY.encode('utf-8'),
+        data,
+        digestmod=hashlib.sha256
+    )
+
+    prep_req.headers['X-App-Token'] = SUMSUB_APP_TOKEN
+    prep_req.headers['X-App-Access-Ts'] = str(now)
+    prep_req.headers['X-App-Access-Sig'] = signature.hexdigest()
+
+    return prep_req
 
 def send_to_discord(message):
     """Send the formatted message to Discord via webhook."""
