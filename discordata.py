@@ -122,7 +122,7 @@ def webhook_listener():
         abort(400, 'Missing applicantId')
 
     # Check if the event type is allowed for processing
-    event_type = data.get('event_type', 'Unknown Event')
+    event_type = data.get('type', 'Unknown Event')
     if ALLOWED_EVENT_TYPES and event_type not in ALLOWED_EVENT_TYPES:
         logger.info(f"Skipping event of type '{event_type}' for applicant ID {applicant_id}")
         return '', 200  # Exit early if event type is not in the allowed list
