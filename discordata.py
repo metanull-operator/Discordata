@@ -16,6 +16,11 @@ SUMSUB_BASE_URL = "https://api.sumsub.com"
 
 REQUEST_TIMEOUT = 60
 
+# List of event types to publish to Discord
+ALLOWED_EVENT_TYPES = [
+    "applicantCreated", "applicantPending", "applicantReviewed"
+]
+
 app = Flask(__name__)
 Talisman(app)  # Adds HTTPS and security headers
 
@@ -116,6 +121,12 @@ def webhook_listener():
         logger.error("Missing applicantId in the request data")
         abort(400, 'Missing applicantId')
 
+    # Check if the event type is allowed for processing
+    event_type = data.get('event_type', 'Unknown Event')
+    if ALLOWED_EVENT_TYPES and event_type not in ALLOWED_EVENT_TYPES:
+        logger.info(f"Skipping event of type '{event_type}' for applicant ID {applicant_id}")
+        return '', 200  # Exit early if event type is not in the allowed list
+
     # Get applicant data with error handling
     try:
         app_data = get_applicant_data(applicant_id)
@@ -173,13 +184,22 @@ def format_message(data, app_data):
 
     logger.info(json.dumps(app_data, indent=4))
 
-    company_name = (app_data.get('info', {})
-                             .get('companyInfo', {})
-                             .get('companyName', 'Unknown Company'))
+    # Determine the name based on the event type
+    if event_type == "individual":
+        first_name = data.get('info', {}).get('firstName', '')
+        last_name = data.get('info', {}).get('lastName', '')
+        # Combine first and last names, or use "Unknown Name" if both are empty
+        name = f"{first_name} {last_name}".strip() or "Unknown Name"
+    elif event_type == "company":
+        name = (app_data.get('info', {})
+                        .get('companyInfo', {})
+                        .get('companyName', 'Unknown Company'))
+    else:
+        name = "Unknown Name"
 
     # Create a formatted message with the event type, timestamp, and pretty-printed JSON
     message = (
-        f"**Company Name:** {company_name}\n"
+        f"**Name:** {name}\n"
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
         f"**Event Data:**\n```json\n{formatted_event}\n```"
