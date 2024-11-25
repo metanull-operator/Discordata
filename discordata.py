@@ -18,7 +18,7 @@ REQUEST_TIMEOUT = 60
 
 # List of event types to publish to Discord
 ALLOWED_EVENT_TYPES = [
-    "applicantCreated", "applicantPending", "applicantReviewed"
+    "applicantReviewed"
 ]
 
 app = Flask(__name__)
@@ -127,6 +127,13 @@ def webhook_listener():
         logger.info(f"Skipping event of type '{event_type}' for applicant ID {applicant_id}")
         return '', 200  # Exit early if event type is not in the allowed list
 
+    # Check if reviewAnswer is "GREEN"
+    review_result = data.get('reviewResult', {})
+    review_answer = review_result.get('reviewAnswer')
+    if review_answer != "GREEN":
+        logger.info(f"Skipping event for applicant ID {applicant_id} with reviewAnswer '{review_answer}'")
+        return '', 200  # Exit early if reviewAnswer is not "GREEN"
+
     # Get applicant data with error handling
     try:
         app_data = get_applicant_data(applicant_id)
@@ -179,15 +186,29 @@ def format_message(data, app_data):
     # Get the current date and time in the format YYYY-MM-DD HH:mm:ss
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
+    # Extract the wallet address
+    wallet_address = None
+    for questionnaire in app_data.get('questionnaires', []):
+        if questionnaire.get('id') == 'web3identity':
+            sections = questionnaire.get('sections', {})
+            test = sections.get('identity', {})
+            items = test.get('items', {})
+            wallet_address = items.get('walletAddress', {}).get('value')
+            break  # Exit loop once the desired questionnaire is found
+
+    # Log the wallet address for debugging
+    logger.info(f"Wallet Address: {wallet_address}")
+
     # Convert the entire data dictionary to a human-friendly JSON string
     formatted_event = json.dumps(data, indent=4)
 
     logger.info(json.dumps(app_data, indent=4))
 
-    # Create a formatted message with the event type, timestamp, and pretty-printed JSON
+    # Create a formatted message with the event type, timestamp, extracted value, and pretty-printed JSON
     message = (
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
+        f"**Wallet Address:** {wallet_address}\n"
         f"**Event Data:**\n```json\n{formatted_event}\n```"
     )
 
