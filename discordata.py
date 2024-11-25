@@ -198,7 +198,8 @@ def format_message(data, app_data):
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
     # Extract the wallet address
-    wallet_address = None
+    wallet_address = "N/A"
+    signature_hash = "N/A"
     for questionnaire in app_data.get('questionnaires', []):
         if questionnaire.get('id') == 'web3identity':
             sections = questionnaire.get('sections', {})
