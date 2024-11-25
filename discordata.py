@@ -184,22 +184,8 @@ def format_message(data, app_data):
 
     logger.info(json.dumps(app_data, indent=4))
 
-    # Determine the name based on the event type
-    if event_type == "individual":
-        first_name = data.get('info', {}).get('firstName', '')
-        last_name = data.get('info', {}).get('lastName', '')
-        # Combine first and last names, or use "Unknown Name" if both are empty
-        name = f"{first_name} {last_name}".strip() or "Unknown Name"
-    elif event_type == "company":
-        name = (app_data.get('info', {})
-                        .get('companyInfo', {})
-                        .get('companyName', 'Unknown Company'))
-    else:
-        name = "Unknown Name"
-
     # Create a formatted message with the event type, timestamp, and pretty-printed JSON
     message = (
-        f"**Name:** {name}\n"
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
         f"**Event Data:**\n```json\n{formatted_event}\n```"
