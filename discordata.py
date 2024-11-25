@@ -202,7 +202,7 @@ def format_message(data, app_data):
     wallet_address = "N/A"
     signature_hash = "N/A"
     for questionnaire in app_data.get('questionnaires', []):
-        if questionnaire.get('id') == 'web3identity':
+        if questionnaire.get('id') == 'web3Identity':
             sections = questionnaire.get('sections', {})
             identity_section = sections.get('identity', {})
             proof_of_ownership_section = sections.get('proofOfOwnership', {})
