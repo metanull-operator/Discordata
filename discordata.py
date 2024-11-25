@@ -136,12 +136,12 @@ def webhook_listener():
         logger.info(f"Skipping event of type '{event_type}' for applicant ID {applicant_id}")
         return '', 200  # Exit early if event type is not in the allowed list
 
-    # Check if reviewAnswer is in the acceptable list
+    # Check if reviewAnswer is in the allowed list
     review_result = data.get('reviewResult', {})
     review_answer = review_result.get('reviewAnswer')
-    if ACCEPTABLE_REVIEW_ANSWERS and review_answer not in ACCEPTABLE_REVIEW_ANSWERS:
+    if ALLOWED_REVIEW_ANSWERS and review_answer not in ALLOWED_REVIEW_ANSWERS:
         logger.info(f"Skipping event for applicant ID {applicant_id} with reviewAnswer '{review_answer}'")
-        return '', 200  # Exit early if reviewAnswer is not acceptable
+        return '', 200  # Exit early if reviewAnswer is not allowed
 
     # Get applicant data with error handling
     try:
@@ -206,12 +206,13 @@ def format_message(data, app_data):
             proof_of_ownership_section = sections.get('proofOfOwnership', {})
             identity_items = identity_section.get('items', {})
             signature_items = proof_of_ownership_section.get('items', {})
-            wallet_address = identity_items.get('walletAddress', {}).get('value')
-            signature_hash = signature_items.get('signatureHash', {}).get('value')
+            wallet_address = identity_items.get('walletAddress', {}).get('value', "N/A")
+            signature_hash = signature_items.get('signatureHash', {}).get('value', "N/A")
             break  # Exit loop once the desired questionnaire is found
 
-    # Log the wallet address for debugging
+    # Log the wallet address and signature hash for debugging
     logger.debug(f"Wallet Address: {wallet_address}")
+    logger.debug(f"Signature Hash: {signature_hash}")
 
     # Convert the entire data dictionary to a human-friendly JSON string
     formatted_event = json.dumps(data, indent=4)
