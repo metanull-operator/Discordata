@@ -146,6 +146,7 @@ def webhook_listener():
     # Get applicant data with error handling
     try:
         app_data = get_applicant_data(applicant_id)
+        logger.debug(app_data)
     except Exception as e:
         logger.error(f"Failed to retrieve applicant data for ID {applicant_id}: {e}")
         abort(500, 'Error retrieving applicant data')
