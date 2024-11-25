@@ -28,11 +28,6 @@ ALLOWED_REVIEW_ANSWERS = [
 app = Flask(__name__)
 Talisman(app)  # Adds HTTPS and security headers
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)  # Set the logging level to DEBUG
-logger = logging.getLogger('werkzeug')  # Get the default Flask logger
-logger.setLevel(logging.DEBUG)
-
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Run the Discordata Flask application.')
 parser.add_argument('--host', type=str, default=os.environ.get('HOST', '0.0.0.0'),
@@ -43,6 +38,9 @@ parser.add_argument('--cert', type=str, default=os.environ.get('CERT_PATH', 'cer
                     help='Path to the SSL certificate file (default: from CERT_PATH env var)')
 parser.add_argument('--key', type=str, default=os.environ.get('KEY_PATH', 'certs/key.pem'),
                     help='Path to the SSL key file (default: from KEY_PATH env var)')
+parser.add_argument('--log-level', type=str, default=os.environ.get('LOG_LEVEL', 'INFO').upper(),
+                    choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                    help='Set the log level (default: from LOG_LEVEL env var or INFO)')
 args = parser.parse_args()
 
 # Use command-line arguments or environment variables for configurations
@@ -50,6 +48,12 @@ host = args.host
 port = args.port
 cert_path = args.cert
 key_path = args.key
+log_level = args.log_level
+
+# Configure logging
+logging.basicConfig(level=log_level)
+logger = logging.getLogger('werkzeug')  # Get the default Flask logger
+logger.setLevel(log_level)
 
 # Get secrets from environment variables
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
@@ -103,7 +107,7 @@ def limit_remote_addr():
 def webhook_listener():
     """Endpoint to receive webhook data."""
     # Log the incoming request details
-    logger.debug(f"Received request from {request.remote_addr}")
+    logger.info(f"Received request from {request.remote_addr}")
     logger.debug(f"Headers: {request.headers}")
     logger.debug(f"Body: {request.data}")
 
@@ -121,6 +125,7 @@ def webhook_listener():
 
     # Check if the applicantId exists in the parsed data
     applicant_id = data.get('applicantId')
+    logger.info(f"Applicant ID: {applicant_id}")
     if not applicant_id:
         logger.error("Missing applicantId in the request data")
         abort(400, 'Missing applicantId')
@@ -150,6 +155,7 @@ def webhook_listener():
 
     # Send the message to Discord
     try:
+        logger.info(f"Sending Discord message regarding applicant {applicant_id}")
         send_to_discord(message)
     except Exception as e:
         logger.error(f"Failed to send message to Discord: {e}")
@@ -168,6 +174,7 @@ def get_applicant_data(app_id):
 
         # Send the request and handle possible network issues
         session = requests.Session()
+        logger.info(f"Requesting applicant data from API for applicant {app_id}")
         response = session.send(signed_req, timeout=REQUEST_TIMEOUT)
 
         # Check for successful response
@@ -204,12 +211,11 @@ def format_message(data, app_data):
             break  # Exit loop once the desired questionnaire is found
 
     # Log the wallet address for debugging
-    logger.info(f"Wallet Address: {wallet_address}")
+    logger.debug(f"Wallet Address: {wallet_address}")
 
     # Convert the entire data dictionary to a human-friendly JSON string
     formatted_event = json.dumps(data, indent=4)
-
-    logger.info(json.dumps(app_data, indent=4))
+    logger.debug(formatted_event)
 
     # Create a formatted message with the event type, timestamp, extracted value, and pretty-printed JSON
     message = (
