@@ -21,6 +21,10 @@ ALLOWED_EVENT_TYPES = [
     "applicantReviewed"
 ]
 
+ALLOWED_REVIEW_ANSWERS = [
+    "GREEN"
+]
+
 app = Flask(__name__)
 Talisman(app)  # Adds HTTPS and security headers
 
@@ -127,12 +131,12 @@ def webhook_listener():
         logger.info(f"Skipping event of type '{event_type}' for applicant ID {applicant_id}")
         return '', 200  # Exit early if event type is not in the allowed list
 
-    # Check if reviewAnswer is "GREEN"
+    # Check if reviewAnswer is in the acceptable list
     review_result = data.get('reviewResult', {})
     review_answer = review_result.get('reviewAnswer')
-    if review_answer != "GREEN":
+    if ACCEPTABLE_REVIEW_ANSWERS and review_answer not in ACCEPTABLE_REVIEW_ANSWERS:
         logger.info(f"Skipping event for applicant ID {applicant_id} with reviewAnswer '{review_answer}'")
-        return '', 200  # Exit early if reviewAnswer is not "GREEN"
+        return '', 200  # Exit early if reviewAnswer is not acceptable
 
     # Get applicant data with error handling
     try:
@@ -191,9 +195,12 @@ def format_message(data, app_data):
     for questionnaire in app_data.get('questionnaires', []):
         if questionnaire.get('id') == 'web3identity':
             sections = questionnaire.get('sections', {})
-            test = sections.get('identity', {})
-            items = test.get('items', {})
-            wallet_address = items.get('walletAddress', {}).get('value')
+            identity_section = sections.get('identity', {})
+            proof_of_ownership_section = sections.get('proofOfOwnership', {})
+            identity_items = identity_section.get('items', {})
+            signature_items = proof_of_ownership_section.get('items', {})
+            wallet_address = identity_items.get('walletAddress', {}).get('value')
+            signature_hash = signature_items.get('signatureHash', {}).get('value')
             break  # Exit loop once the desired questionnaire is found
 
     # Log the wallet address for debugging
@@ -209,6 +216,7 @@ def format_message(data, app_data):
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
         f"**Wallet Address:** {wallet_address}\n"
+        f"**Signature Hash:** {signature_hash}\n"
         f"**Event Data:**\n```json\n{formatted_event}\n```"
     )
 
