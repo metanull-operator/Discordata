@@ -378,8 +378,8 @@ def format_message(applicant_id, data, app_data, address_score):
     if signature_message:
         is_valid_signature = verify_ethereum_signature(
             signature_message,
-            signature=signature_hash,
-            expected_address=wallet_address
+            signature_hash,
+            wallet_address
         )
 
         message += "**Signature Status:** "
