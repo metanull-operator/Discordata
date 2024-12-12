@@ -423,7 +423,9 @@ def sign_request(request: requests.Request) -> requests.PreparedRequest:
 
 def verify_ethereum_signature(message, signature, expected_address):
 
-    logger.debug(f"Verifying signature against message: {message}")
+    logger.debug(f"Verifying signature against message: -{message}-")
+    logger.debug(f"Signature hash: -{signature}-")
+    logger.debug(f"Expected address: -{expected_address}-")
 
     try:
         # Prepare the message for signing
