@@ -64,6 +64,9 @@ cert_path = args.cert
 key_path = args.key
 log_level = args.log_level
 signature_message = args.signature_message
+polling_max_retries = args.polling_max_retries
+polling_delay = args.polling_delay
+acceptable_risk_score = args.acceptable_risk_score
 
 # Configure logging
 logging.basicConfig(level=log_level)
@@ -291,7 +294,7 @@ def get_address_score(applicant_id, wallet_address):
         return poll_address_score(external_txn_id)
 
 
-def poll_address_score(external_txn_id, max_retries=POLLING_MAX_RETRIES, delay=POLLING_DELAY):
+def poll_address_score(external_txn_id, max_retries=polling_max_retries, delay=polling_delay):
     path = f"/resources/kyt/txns/-;data.txnId={external_txn_id}/one"
     url = f"{SUMSUB_BASE_URL}{path}"
 
@@ -393,7 +396,7 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
 
     message += "**Risk Score:** "
     if screening_status == "GREEN" and address_score:
-        if address_score >= ACCEPTABLE_RISK_SCORE:
+        if address_score >= acceptable_risk_score:
             message += ":green_circle:\n"
         else:
             message += ":red_circle\n"
