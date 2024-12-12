@@ -31,6 +31,14 @@ ALLOWED_REVIEW_ANSWERS = [
     "RED"
 ]
 
+PROGRAM_PARTICIPATION_LOOKUP = {
+    "grantsProgramParticipant": "Grants Program",
+    "voProgramParticipant": "Verified Operator Program",
+    "serviceProviderParticipant": "Service Provider",
+    "communityProgramParticipant": "Community Program (CAP, Divers)",
+    "otherParticipant": "Other"
+}
+
 app = Flask(__name__)
 Talisman(app)  # Adds HTTPS and security headers
 
@@ -374,8 +382,10 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
 
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
+    program_title = PROGRAM_PARTICIPATION_LOOKUP.get(program_participation, "Unknown Program")
+
     message = "### New Applicant Status\n"
-    message += f"**Program:** {program_participation}\n"
+    message += f"**Program:** {program_title}\n"
 
     message += "**Review Status:** "
     if screening_status == "GREEN":
