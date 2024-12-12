@@ -362,7 +362,7 @@ def format_message(applicant_id, data, app_data, address_score):
 
     # Create a formatted message with the event type, timestamp, extracted value, and pretty-printed JSON
     message = (
-        f"**Applicant ID: {applicant_id}\n**"
+        f"**Applicant ID:** {applicant_id}\n"
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
     )
@@ -377,7 +377,7 @@ def format_message(applicant_id, data, app_data, address_score):
 
     if signature_message:
         is_valid_signature = verify_ethereum_signature(
-            message=data.get('signedMessage', ''),
+            signature_message,
             signature=signature_hash,
             expected_address=wallet_address
         )
@@ -422,17 +422,9 @@ def sign_request(request: requests.Request) -> requests.PreparedRequest:
 
 
 def verify_ethereum_signature(message, signature, expected_address):
-    """
-    Verify an Ethereum signature.
 
-    Args:
-        message (str): The original message that was signed.
-        signature (str): The signature hash.
-        expected_address (str): The Ethereum address expected to match the signature.
+    logger.debug(f"Verifying signature against message: {message}")
 
-    Returns:
-        bool: True if the signature is valid and matches the expected address, False otherwise.
-    """
     try:
         # Prepare the message for signing
         message_encoded = encode_defunct(text=message)
