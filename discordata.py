@@ -10,6 +10,9 @@ import ipaddress
 import logging
 import time
 import argparse
+from eth_account.messages import encode_defunct
+from eth_account import Account
+import threading
 
 HMAC_HEADER_NAME = 'x-payload-digest'
 SUMSUB_BASE_URL = "https://api.sumsub.com"
@@ -41,6 +44,8 @@ parser.add_argument('--key', type=str, default=os.environ.get('KEY_PATH', 'certs
 parser.add_argument('--log-level', type=str, default=os.environ.get('LOG_LEVEL', 'INFO').upper(),
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                     help='Set the log level (default: from LOG_LEVEL env var or INFO)')
+parser.add_argument('--signature-message', type=str, default=os.environ.get('SIGNATURE_MESSAGE', None),
+                    help='Message that must be signed by the owner address. Maybe be omitted to turn off signature checking.')
 args = parser.parse_args()
 
 # Use command-line arguments or environment variables for configurations
@@ -49,6 +54,7 @@ port = args.port
 cert_path = args.cert
 key_path = args.key
 log_level = args.log_level
+signature_message = args.signature_message
 
 # Configure logging
 logging.basicConfig(level=log_level)
@@ -106,7 +112,6 @@ def limit_remote_addr():
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
     """Endpoint to receive webhook data."""
-    # Log the incoming request details
     logger.info(f"Received request from {request.remote_addr}")
     logger.debug(f"Headers: {request.headers}")
     logger.debug(f"Body: {request.data}")
@@ -123,7 +128,6 @@ def webhook_listener():
         logger.error(f"Invalid JSON payload: {e}")
         abort(400, 'Invalid JSON payload')
 
-    # Check if the applicantId exists in the parsed data
     applicant_id = data.get('applicantId')
     logger.info(f"Applicant ID: {applicant_id}")
     if not applicant_id:
@@ -136,6 +140,12 @@ def webhook_listener():
         logger.info(f"Skipping event of type '{event_type}' for applicant ID {applicant_id}")
         return '', 200  # Exit early if event type is not in the allowed list
 
+    # Check if the event type is allowed for processing
+    level_name = data.get('levelName')
+    if level_name == 'ubo-basic-kyc-level':
+        logger.info(f"Skipping event of levelName 'ubo-basic-kyc-level' for applicant ID {applicant_id}")
+        return '', 200  # Exit early if event type is not in the allowed list
+
     # Check if reviewAnswer is in the allowed list
     review_result = data.get('reviewResult', {})
     review_answer = review_result.get('reviewAnswer')
@@ -143,26 +153,139 @@ def webhook_listener():
         logger.info(f"Skipping event for applicant ID {applicant_id} with reviewAnswer '{review_answer}'")
         return '', 200  # Exit early if reviewAnswer is not allowed
 
-    # Get applicant data with error handling
+    # Offload the address scoring and Discord notification
+    logger.info(f"Offloading processing for applicant ID: {applicant_id}")
+    threading.Thread(target=process_webhook_data, args=(applicant_id, data)).start()
+
+    return '', 200  # Respond immediately
+
+
+def process_webhook_data(applicant_id, data):
+    """Background job to handle address scoring and notify Discord."""
     try:
+        # Retrieve applicant data
         app_data = get_applicant_data(applicant_id)
-        logger.debug(app_data)
-    except Exception as e:
-        logger.error(f"Failed to retrieve applicant data for ID {applicant_id}: {e}")
-        abort(500, 'Error retrieving applicant data')
+        wallet_address = extract_wallet_address(app_data)
 
-    # Process the data and create a human-friendly message
-    message = format_message(data, app_data)
+        # Get the address score (polling logic)
+        if wallet_address:
+            address_score = get_address_score(applicant_id, wallet_address)
+        else:
+            address_score = None
 
-    # Send the message to Discord
-    try:
-        logger.info(f"Sending Discord message regarding applicant {applicant_id}")
+        # Prepare and send Discord message
+        message = format_message(applicant_id, data, app_data, address_score)
         send_to_discord(message)
-    except Exception as e:
-        logger.error(f"Failed to send message to Discord: {e}")
-        abort(500, 'Failed to send message to Discord')
 
-    return '', 200
+        logger.info(f"Successfully processed and sent data for applicant ID: {applicant_id}")
+    except Exception as e:
+        logger.error(f"Error processing webhook data for applicant ID {applicant_id}: {e}")
+
+
+def submit_address_request(applicant_id, wallet_address):
+    external_txn_id = generate_unique_id(20)
+
+    url = f"{SUMSUB_BASE_URL}/resources/applicants/{applicant_id}/kyt/txns/-/data"
+
+    payload = {
+        "txnId": external_txn_id,
+        "type": "finance",  # Transaction type
+        "info": {
+            "direction": "out",
+            "currencyCode": "ETH",  # Ethereum
+            "amount": "0.01"  # Fictional amount
+        },
+        "applicant": {
+            "type": "company",
+            "externalUserId": wallet_address,
+            "fullName": ""
+        },
+        "counterparty": {
+            "paymentMethod": {
+                "type": "crypto",
+                "accountId": wallet_address
+            }
+        }
+    }
+    logger.info(f"Submitting address for score: {wallet_address}")
+    logger.debug(f"Payload:\n{json.dumps(payload, indent=4)}")
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'utf-8'
+    }
+
+    resp = sign_request(requests.Request("POST", url, data=json.dumps(payload), headers=headers))
+    s = requests.Session()
+    response = s.send(resp, timeout=60)
+
+    logger.debug(f"Response Status Code: {response.status_code}")
+    logger.debug(f"Response Headers: {response.headers}")
+    logger.debug(f"Response Content: {response.text}")
+
+    if response.status_code == 200:
+        try:
+            result = response.json()
+
+            logger.debug(f"Full Response: {json.dumps(result, indent=4)}")  # Pretty print the full response
+            logger.info("Transaction submitted successfully.")
+
+            return external_txn_id
+        except ValueError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error(f"Raw Response Content: {response.text}")
+            return None
+    else:
+        logger.error(f"Failed to submit transaction. Status: {response.status_code}, Response: {response.text}")
+        return None
+
+
+def get_address_score(applicant_id, wallet_address):
+    external_txn_id = submit_address_request(applicant_id, wallet_address)
+
+    if external_txn_id:
+        return poll_address_score(external_txn_id)
+
+
+def poll_address_score(external_txn_id, max_retries=10, delay=10):
+    path = f"/resources/kyt/txns/-;data.txnId={external_txn_id}/one"
+    url = f"{SUMSUB_BASE_URL}{path}"
+
+    logger.info(f"Polling transaction results for txnId: {external_txn_id}")
+    logger.debug(f"URL: {url}")
+
+    resp = sign_request(requests.Request("GET", url))
+    s = requests.Session()
+
+    for attempt in range(1, max_retries + 1):
+        logger.info(f"Polling attempt {attempt}/{max_retries}...")
+        response = s.send(resp, timeout=60)
+
+        logger.debug(f"Response Status Code: {response.status_code}")
+        logger.debug(f"Response Content: {response.text}")
+
+        if response.status_code == 200:
+            try:
+                result = response.json()
+                logger.info(f"Full Response JSON:\n{json.dumps(result, indent=4)}")
+
+                # Check if the scoringResult is available
+                score = result.get('scoringResult', {}).get('score')
+                if score is not None:
+                    logger.info(f"Risk Score: {score}")
+                    return result
+
+                logger.info("Results not ready yet. Retrying...")
+            except ValueError as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+        else:
+            logger.error(f"Error fetching transaction results: {response.status_code}, {response.text}")
+
+        # Wait before the next polling attempt
+        time.sleep(delay)
+
+    logger.error("Max polling attempts reached. Results not available.")
+    return None
 
 
 def get_applicant_data(app_id):
@@ -191,7 +314,16 @@ def get_applicant_data(app_id):
         raise
 
 
-def format_message(data, app_data):
+def extract_wallet_address(app_data):
+    """Extract wallet address from applicant data."""
+    for questionnaire in app_data.get('questionnaires', []):
+        if questionnaire.get('id') == 'web3Identity':
+            items = questionnaire.get('sections', {}).get('identity', {}).get('items', {})
+            return items.get('walletAddress', {}).get('value', None)
+    return None
+
+
+def format_message(applicant_id, data, app_data, address_score):
     """Format the webhook data into a human-friendly Discord message."""
     event_type = data.get('type', 'Unknown Event')
 
@@ -224,14 +356,35 @@ def format_message(data, app_data):
     message = (
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
-        f"**Wallet Address:** {wallet_address}\n"
-        f"**Signature Hash:** {signature_hash}\n"
-        f"**Event Data:**\n```json\n{formatted_event}\n```"
     )
+
+    message += f"**Wallet Address:** {wallet_address}\n"
+
+    message += "**Wallet Address Score:** "
+    if address_score:
+        message += f"{address_score}\n"
+    else:
+        message += "N/A\n"
+
+    if signature_message:
+        is_valid_signature = verify_ethereum_signature(
+            message=data.get('signedMessage', ''),
+            signature=signature_hash,
+            expected_address=wallet_address
+        )
+
+        message += "**Signature Status:** "
+        if is_valid_signature:
+            message += "Valid \U00002705\n"
+        else:
+            message += "Invalid \U0000274C\n"
+
+    message += f"**Event Data:**\n```json\n{formatted_event}\n```"
 
     return message
 
-def sign_request(request):
+
+def sign_request(request: requests.Request) -> requests.PreparedRequest:
     prep_req = request.prepare()
 
     now = int(time.time())
@@ -255,6 +408,33 @@ def sign_request(request):
     prep_req.headers['X-App-Access-Sig'] = signature.hexdigest()
 
     return prep_req
+
+
+def verify_ethereum_signature(message, signature, expected_address):
+    """
+    Verify an Ethereum signature.
+
+    Args:
+        message (str): The original message that was signed.
+        signature (str): The signature hash.
+        expected_address (str): The Ethereum address expected to match the signature.
+
+    Returns:
+        bool: True if the signature is valid and matches the expected address, False otherwise.
+    """
+    try:
+        # Prepare the message for signing
+        message_encoded = encode_defunct(text=message)
+
+        # Recover the address from the signature
+        recovered_address = Account.recover_message(message_encoded, signature=signature)
+
+        # Compare the recovered address with the expected address
+        return recovered_address.lower() == expected_address.lower()
+    except Exception as e:
+        logger.error(f"Error verifying signature: {e}")
+        return False
+
 
 def send_to_discord(message):
     """Send the formatted message to Discord via webhook."""
