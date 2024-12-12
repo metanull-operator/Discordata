@@ -27,7 +27,8 @@ ALLOWED_EVENT_TYPES = [
 ]
 
 ALLOWED_REVIEW_ANSWERS = [
-    "GREEN"
+    "GREEN",
+    "RED"
 ]
 
 app = Flask(__name__)
@@ -48,6 +49,12 @@ parser.add_argument('--log-level', type=str, default=os.environ.get('LOG_LEVEL',
                     help='Set the log level (default: from LOG_LEVEL env var or INFO)')
 parser.add_argument('--signature-message', type=str, default=os.environ.get('SIGNATURE_MESSAGE', None),
                     help='Message that must be signed by the owner address. Maybe be omitted to turn off signature checking.')
+parser.add_argument('--acceptable-risk-score', type=int, default=os.environ.get('ACCEPTABLE_RISK_SCORE', 20),
+                    help='Minimum address risk score required')
+parser.add_argument('--polling-max-retries', type=int, default=os.environ.get('POLLING_MAX_RETRIES', 10),
+                    help='Maximum number of polling requests for address score before quitting')
+parser.add_argument('--polling-delay', type=int, default=os.environ.get('POLLING_DELAY', 5),
+                    help='Number of seconds between polling retries')
 args = parser.parse_args()
 
 # Use command-line arguments or environment variables for configurations
@@ -175,14 +182,43 @@ def process_webhook_data(applicant_id, data):
         app_data = get_applicant_data(applicant_id)
         wallet_address = extract_wallet_address(app_data)
 
+        review_result = data.get('reviewResult', {})
+        screening_status = review_result.get('reviewAnswer')
+
+        for questionnaire in app_data.get('questionnaires', []):
+            if questionnaire.get('id') == 'web3Identity':
+                sections = questionnaire.get('sections', {})
+                identity_section = sections.get('identity', {})
+                program_section = sections.get('program', {})
+                proof_of_ownership_section = sections.get('proofOfOwnership', {})
+                identity_items = identity_section.get('items', {})
+                program_items = program_section.get('items', {})
+                signature_items = proof_of_ownership_section.get('items', {})
+                wallet_address = identity_items.get('walletAddress', {}).get('value', None)
+                signature_hash = signature_items.get('signatureHash', {}).get('value', None)
+                program_participation = program_items.get('programParticipation', {}).get('value', None)
+                break  # Exit loop once the desired questionnaire is found
+
+        # Log the wallet address and signature hash for debugging
+        logger.debug(f"Wallet Address: {wallet_address}")
+        logger.debug(f"Signature Hash: {signature_hash}")
+
+        is_valid_signature = False
+        if screening_status == "GREEN" and signature_message and wallet_address and signature_hash:
+            is_valid_signature = verify_ethereum_signature(
+                signature_message,
+                signature_hash,
+                wallet_address
+            )
+
         # Get the address score (polling logic)
-        if wallet_address:
+        if wallet_address and is_valid_signature and screening_status == "GREEN":
             address_score = get_address_score(applicant_id, wallet_address)
         else:
             address_score = None
 
         # Prepare and send Discord message
-        message = format_message(applicant_id, data, app_data, address_score)
+        message = format_message(applicant_id, event_type, screening_status, wallet_address, is_valid_signature, address_score, program_participation)
         send_to_discord(message)
 
         logger.info(f"Successfully processed and sent data for applicant ID: {applicant_id}")
@@ -225,7 +261,7 @@ def submit_address_request(applicant_id, wallet_address):
 
     resp = sign_request(requests.Request("POST", url, data=json.dumps(payload), headers=headers))
     s = requests.Session()
-    response = s.send(resp, timeout=60)
+    response = s.send(resp, timeout=REQUEST_TIMEOUT)
 
     logger.debug(f"Response Status Code: {response.status_code}")
     logger.debug(f"Response Headers: {response.headers}")
@@ -255,7 +291,7 @@ def get_address_score(applicant_id, wallet_address):
         return poll_address_score(external_txn_id)
 
 
-def poll_address_score(external_txn_id, max_retries=10, delay=10):
+def poll_address_score(external_txn_id, max_retries=POLLING_MAX_RETRIES, delay=POLLING_DELAY):
     path = f"/resources/kyt/txns/-;data.txnId={external_txn_id}/one"
     url = f"{SUMSUB_BASE_URL}{path}"
 
@@ -267,7 +303,7 @@ def poll_address_score(external_txn_id, max_retries=10, delay=10):
 
     for attempt in range(1, max_retries + 1):
         logger.info(f"Polling attempt {attempt}/{max_retries}...")
-        response = s.send(resp, timeout=60)
+        response = s.send(resp, timeout=REQUEST_TIMEOUT)
 
         logger.debug(f"Response Status Code: {response.status_code}")
         logger.debug(f"Response Content: {response.text}")
@@ -331,64 +367,51 @@ def extract_wallet_address(app_data):
     return None
 
 
-def format_message(applicant_id, data, app_data, address_score):
-    """Format the webhook data into a human-friendly Discord message."""
-    event_type = data.get('type', 'Unknown Event')
+def format_message(applicant_id, event_type, screening_status, wallet_address, is_valid_signature, address_score, program_participation):
 
-    # Get the current date and time in the format YYYY-MM-DD HH:mm:ss
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
-    # Extract the wallet address
-    wallet_address = "N/A"
-    signature_hash = "N/A"
-    for questionnaire in app_data.get('questionnaires', []):
-        if questionnaire.get('id') == 'web3Identity':
-            sections = questionnaire.get('sections', {})
-            identity_section = sections.get('identity', {})
-            proof_of_ownership_section = sections.get('proofOfOwnership', {})
-            identity_items = identity_section.get('items', {})
-            signature_items = proof_of_ownership_section.get('items', {})
-            wallet_address = identity_items.get('walletAddress', {}).get('value', "N/A")
-            signature_hash = signature_items.get('signatureHash', {}).get('value', "N/A")
-            break  # Exit loop once the desired questionnaire is found
+    message = "### New Applicant Status\n"
+    message += f"**Program:** {program_participation}\n"
 
-    # Log the wallet address and signature hash for debugging
-    logger.debug(f"Wallet Address: {wallet_address}")
-    logger.debug(f"Signature Hash: {signature_hash}")
-
-    # Convert the entire data dictionary to a human-friendly JSON string
-    formatted_event = json.dumps(data, indent=4)
-    logger.debug(formatted_event)
-
-    # Create a formatted message with the event type, timestamp, extracted value, and pretty-printed JSON
-    message = (
-        f"**Applicant ID:** {applicant_id}\n"
-        f"**Event Type:** {event_type}\n"
-        f"**Timestamp:** {current_time} UTC\n"
-    )
-
-    message += f"**Wallet Address:** {wallet_address}\n"
-
-    message += "**Wallet Address Score:** "
-    if address_score:
-        message += f"{address_score}\n"
+    message += "**Review Status:** "
+    if screening_status == "GREEN":
+        message += ":white_check_mark:\n"
+    else if screening_status == "RED":
+        message += ":x:\n"
     else:
         message += "N/A\n"
 
-    if signature_message:
-        is_valid_signature = verify_ethereum_signature(
-            signature_message,
-            signature_hash,
-            wallet_address
-        )
+    message += "**Signature Status:** "
+    if screening_status == "GREEN":
+            if is_valid_signature:
+                message += "\U00002705\n"
+            else:
+                message += "\U0000274C\n"
+    else:
+        message += "N/A\n"
 
-        message += "**Signature Status:** "
-        if is_valid_signature:
-            message += "Valid \U00002705\n"
+    message += "**Risk Score:** "
+    if screening_status == "GREEN" and address_score:
+        if address_score >= ACCEPTABLE_RISK_SCORE:
+            message += ":green_circle:\n"
         else:
-            message += "Invalid \U0000274C\n"
+            message += ":red_circle\n"
+    else:
+        message += "N/A\n"
 
-#    message += f"**Event Data:**\n```json\n{formatted_event}\n```"
+    message += "**Event:***\n"
+    message += f"Applicant ID: {applicant_id}\n"
+    message += f"Timestamp: {current_time} UTC\n"
+    message += f"Event Type: {event_type}\n"
+
+    message += "**Wallet:**\n"
+    message += f"Wallet Address: {wallet_address}\n"
+    message += "Risk Score: "
+    if screening_status == "GREEN" and address_score:
+        message += f"{address_score}\n"
+    else:
+        message += "N/A\n"
 
     logging.debug(message)
 
