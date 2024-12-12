@@ -362,6 +362,7 @@ def format_message(applicant_id, data, app_data, address_score):
 
     # Create a formatted message with the event type, timestamp, extracted value, and pretty-printed JSON
     message = (
+        f"**Applicant ID: {applicant_id}\n**"
         f"**Event Type:** {event_type}\n"
         f"**Timestamp:** {current_time} UTC\n"
     )
@@ -387,7 +388,7 @@ def format_message(applicant_id, data, app_data, address_score):
         else:
             message += "Invalid \U0000274C\n"
 
-    message += f"**Event Data:**\n```json\n{formatted_event}\n```"
+#    message += f"**Event Data:**\n```json\n{formatted_event}\n```"
 
     return message
 
