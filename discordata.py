@@ -281,7 +281,7 @@ def poll_address_score(external_txn_id, max_retries=10, delay=10):
                 score = result.get('scoringResult', {}).get('score')
                 if score is not None:
                     logger.info(f"Risk Score: {score}")
-                    return result
+                    return score
 
                 logger.info("Results not ready yet. Retrying...")
             except ValueError as e:
