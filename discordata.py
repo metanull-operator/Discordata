@@ -109,6 +109,12 @@ def limit_remote_addr():
         abort(403, description="Forbidden: Access is denied.")
 
 
+def generate_unique_id(length=20):
+    """Generate a unique ID similar to the examples."""
+    characters = string.ascii_lowercase + string.digits  # Lowercase letters and digits
+    return ''.join(random.choices(characters, k=length))
+
+
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
     """Endpoint to receive webhook data."""
