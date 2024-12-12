@@ -390,6 +390,8 @@ def format_message(applicant_id, data, app_data, address_score):
 
 #    message += f"**Event Data:**\n```json\n{formatted_event}\n```"
 
+    logging.debug(message)
+
     return message
 
 
