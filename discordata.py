@@ -13,6 +13,8 @@ import argparse
 from eth_account.messages import encode_defunct
 from eth_account import Account
 import threading
+import random
+import string
 
 HMAC_HEADER_NAME = 'x-payload-digest'
 SUMSUB_BASE_URL = "https://api.sumsub.com"
