@@ -377,7 +377,7 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
     message += "**Review Status:** "
     if screening_status == "GREEN":
         message += ":white_check_mark:\n"
-    else if screening_status == "RED":
+    elif screening_status == "RED":
         message += ":x:\n"
     else:
         message += "N/A\n"
