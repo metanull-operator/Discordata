@@ -407,8 +407,8 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
         message += "N/A\n"
 
     message += "**Risk Score:**        "
-    if screening_status == "GREEN" and address_score:
-        if address_score >= acceptable_risk_score:
+    if screening_status == "GREEN" and address_score is not None:
+        if address_score <= acceptable_risk_score:
             message += ":green_circle:\n"
         else:
             message += ":red_circle\n"
