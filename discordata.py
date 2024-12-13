@@ -397,7 +397,7 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
     else:
         message += "N/A\n"
 
-    message += "**Signature Status:** "
+    message += "**Hash Status:** "
     if screening_status == "GREEN":
             if is_valid_signature:
                 message += "\U00002705\n"
