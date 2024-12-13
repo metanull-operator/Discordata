@@ -423,7 +423,7 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
     message += "\n**Wallet:**\n"
     message += f"Wallet Address: {wallet_address}\n"
     message += "Risk Score: "
-    if screening_status == "GREEN" and address_score:
+    if screening_status == "GREEN" and address_score is not None:
         message += f"{address_score}\n"
     else:
         message += "N/A\n"
