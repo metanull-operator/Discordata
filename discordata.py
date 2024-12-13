@@ -196,6 +196,8 @@ def process_webhook_data(applicant_id, data):
         review_result = data.get('reviewResult', {})
         screening_status = review_result.get('reviewAnswer')
 
+        event_type = data.get('type', 'Unknown Event')
+
         for questionnaire in app_data.get('questionnaires', []):
             if questionnaire.get('id') == 'web3Identity':
                 sections = questionnaire.get('sections', {})
