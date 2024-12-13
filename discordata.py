@@ -389,7 +389,7 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
     message = "### New Applicant Status\n"
     message += f"**Program:** {program_title}\n"
 
-    message += "**Review Status:**      "
+    message += "**Review Status:** "
     if screening_status == "GREEN":
         message += ":white_check_mark:\n"
     elif screening_status == "RED":
@@ -397,7 +397,7 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
     else:
         message += "N/A\n"
 
-    message += "**Hash Status:** "
+    message += "**Hash Status:**     "
     if screening_status == "GREEN":
             if is_valid_signature:
                 message += "\U00002705\n"
@@ -406,7 +406,7 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
     else:
         message += "N/A\n"
 
-    message += "**Risk Score:**             "
+    message += "**Risk Score:**        "
     if screening_status == "GREEN" and address_score:
         if address_score >= acceptable_risk_score:
             message += ":green_circle:\n"
