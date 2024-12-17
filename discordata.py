@@ -439,7 +439,7 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
 
 
 def add_custom_tags(applicant_id, tags):
-    url = SUMSUB_BASE_URL + '/resources/applicants/' + applicant_id + '/tags'
+    url = SUMSUB_BASE_URL + '/resources/applicants/' + applicant_id + '/tags/add'
 
     logger.info(f"Adding tags for applicant: {applicant_id}")
     logger.debug(f"Payload:\n{json.dumps(tags, indent=4)}")
