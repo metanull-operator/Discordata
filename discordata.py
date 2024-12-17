@@ -187,7 +187,13 @@ def webhook_listener():
 
 
 def process_webhook_data(applicant_id, data):
-    """Background job to handle address scoring and notify Discord."""
+
+    wallet_address = None
+    signature_hash = None
+    program_participation = None
+    is_valid_signature = False
+    address_score = None
+
     try:
         # Retrieve applicant data
         app_data = get_applicant_data(applicant_id)
@@ -216,19 +222,22 @@ def process_webhook_data(applicant_id, data):
         logger.debug(f"Wallet Address: {wallet_address}")
         logger.debug(f"Signature Hash: {signature_hash}")
 
-        is_valid_signature = False
-        if screening_status == "GREEN" and signature_message and wallet_address and signature_hash:
-            is_valid_signature = verify_ethereum_signature(
-                signature_message,
-                signature_hash,
-                wallet_address
-            )
+        if screening_status == "GREEN":
+            if wallet_address:
+                if signature_message and signature_hash:
+                    is_valid_signature = verify_ethereum_signature(
+                        signature_message,
+                        signature_hash,
+                        wallet_address
+                    )
 
-        # Get the address score (polling logic)
-        if wallet_address and is_valid_signature and screening_status == "GREEN":
-            address_score = get_address_score(applicant_id, wallet_address)
-        else:
-            address_score = None
+                if is_valid_signature:
+                    address_score = get_address_score(applicant_id, wallet_address)
+                    if address_score <= acceptable_risk_score:
+                        add_custom_tags(applicant_id, ['Verified Wallet'])
+                else:
+                    add_custom_tags(applicant_id, ['Invalid Hash'])
+                    address_score = None
 
         # Prepare and send Discord message
         message = format_message(applicant_id, event_type, screening_status, wallet_address, is_valid_signature, address_score, program_participation)
@@ -371,15 +380,6 @@ def get_applicant_data(app_id):
         raise
 
 
-def extract_wallet_address(app_data):
-    """Extract wallet address from applicant data."""
-    for questionnaire in app_data.get('questionnaires', []):
-        if questionnaire.get('id') == 'web3Identity':
-            items = questionnaire.get('sections', {}).get('identity', {}).get('items', {})
-            return items.get('walletAddress', {}).get('value', None)
-    return None
-
-
 def format_message(applicant_id, event_type, screening_status, wallet_address, is_valid_signature, address_score, program_participation):
 
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -421,7 +421,13 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
     message += f"Event Type: {event_type}\n"
 
     message += "\n**Wallet:**\n"
-    message += f"Wallet Address: {wallet_address}\n"
+
+    message += "Wallet Address: "
+    if wallet_address:
+        message += f"{wallet_address}\n"
+    else:
+        message += "N/A\n"
+
     message += "Risk Score: "
     if screening_status == "GREEN" and address_score is not None:
         message += f"{address_score}\n"
@@ -431,6 +437,41 @@ def format_message(applicant_id, event_type, screening_status, wallet_address, i
     logging.debug(message)
 
     return message
+
+
+def add_custom_tags(applicant_id, tags):
+    url = SUMSUB_BASE_URL + '/resources/applicants/' + applicant_id + '/tags'
+
+    logger.info(f"Adding tags for applicant: {applicant_id}")
+    logger.debug(f"Payload:\n{json.dumps(tags, indent=4)}")
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'utf-8'
+    }
+
+    resp = sign_request(requests.Request("POST", url, data=json.dumps(tags), headers=headers))
+
+    session = requests.Session()
+    response = session.send(resp, timeout=REQUEST_TIMEOUT)
+
+    logger.debug(f"Response Status Code: {response.status_code}")
+    logger.debug(f"Response Headers: {response.headers}")
+    logger.debug(f"Response Content: {response.text}")
+
+    if response.status_code == 200:
+        try:
+            result = response.json()
+            logger.debug(f"Full Response: {json.dumps(result, indent=4)}")
+            logger.info("Tags added successfully.")
+            return result
+        except ValueError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error(f"Raw Response Content: {response.text}")
+            return None
+    else:
+        logger.error(f"Failed to add tags. Status: {response.status_code}, Response: {response.text}")
+        return None
 
 
 def sign_request(request: requests.Request) -> requests.PreparedRequest:
