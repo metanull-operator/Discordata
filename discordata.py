@@ -197,7 +197,6 @@ def process_webhook_data(applicant_id, data):
     try:
         # Retrieve applicant data
         app_data = get_applicant_data(applicant_id)
-        wallet_address = extract_wallet_address(app_data)
 
         review_result = data.get('reviewResult', {})
         screening_status = review_result.get('reviewAnswer')
