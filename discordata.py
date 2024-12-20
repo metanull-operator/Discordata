@@ -45,7 +45,7 @@ Talisman(app)  # Adds HTTPS and security headers
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Run the Discordata Flask application.')
 parser.add_argument('--host', type=str, default=os.environ.get('HOST', '0.0.0.0'),
-                    help='The IP address to bind to (default: from HOST env var or 0.0.0.0)')
+                    help='The network interface to bind to and listen for requests on (default: from HOST env var or 0.0.0.0)')
 parser.add_argument('--port', type=int, default=int(os.environ.get('PORT', 1276)),
                     help='The port number to listen on (default: from PORT env var or 1276)')
 parser.add_argument('--cert', type=str, default=os.environ.get('CERT_PATH', 'certs/cert.pem'),

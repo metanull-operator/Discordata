@@ -1,8 +1,8 @@
 # Discordata
-Discordata is a simple bridge between incoming KYC provider webhook
+Discordata is a bridge between incoming Sumsub KYC provider webhook
 requests and outgoing Discord webhook requests. Each time a
-webhook request is received, Discordata formats a Discord
-and sends it via the Discord webhook URL.
+webhook request is received, Discordata requests additional applicant data via an API call to Sumsub, requests Ethereum address risk score via an API call to Sumsub, optionally verifies an Ethereum digital signature, formats a
+message, and sends the message via the Discord webhook URL.
 
 Discord data can be run as a standalone application or as a
 docker container. 
@@ -48,17 +48,27 @@ Two environment variables are required to be exported to Discordata in order to 
 - `DISCORD_WEBHOOK_URL` - The URL for the Discord webhook to be 
   used to send messages to Discord. This can be provided by the
   administrators of the Discord server.
+- `SUBSUM_SECRET_KEY` - Secret key required to access Sumsub API.
+- `SUMSUB_APP_TOKEN` - App token required to access Sumsub API.
 
 ### Optional Environment Variables
 
 Two additional environment variables may be set to modify default behaviors:
 
-- `ALLOWED_IPS` - Comma-delimited list of IP addresses or subnets
-  from which requests will be accepted. Defaults to `0.0.0.0`.
+- `ALLOWED_IPS` - Comma-delimited list of remote IP addresses or subnets
+  from which requests will be accepted. Defaults to `0.0.0.0`, all remote IP addresses.
 - `PORT` - Port on which Discordata will listen. For Docker containers,
   this is the internal port on which Discordata is listening. The
   external port can be adjusted with the `-p` flag on the run
   command. Defaults to `1276`.
+- `HOST` - The network interface to which Discordata should bind and listen for requests. Defaults to `0.0.0.0`, all network interfaces.
+- `CERT_PATH` - Path to the SSL cerificate file.
+- `KEY_PATH` - Path to the SSL key file.
+- `LOG_LEVEL` - Level of log messages to output. Allowed values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, and `CRITICAL`. Defaults to `INFO`.
+- `SIGNATURE_MESSAGE` - The message to be signed by the applicant's Ethereum address. Used to verify the signature. Signature verification is skipped if this value is not present.
+- `ACCEPTABLE_RISK_SCORE` - The maximum risk score allowed to pass the Ethereum address risk review. All scores less than or equal to this value pass the review. Defaults to `20`.
+- `POLLING_MAX_RETRIES` - Maximum number of attempts to retrieve the Ethereum address risk score. Defaults to `10`.
+- `POLLING_DELAY` - The number of seconds between attempts to retrieve the Ethereum address risk score. Defaults to  `5`.
 
 ### Set Environment Variables in .env
 
@@ -106,25 +116,11 @@ Otherwise, place your organization's `cert.pem` and `key.pem` file in the `certs
 ### Install Python Packages
 
 ```console
-pip3 install flask flask-talisman requests
+pip3 install flask flask-talisman requests eth_account
 ```
 
 ### Run discordata.sh
 
 ```console
-./discordata.sh
+WEBHOOK_SECRET="webhook secret" DISCORD_WEBHOOK_URL="discord webhook url" SUMSUB_SECRET_KEY="sumsub secret key" SUMSUB_APP_TOKEN="sumsub app token" ./discordata.sh --cert certs/cert.pem --key certs/key.pem --signature-message "Sign this message"
 ```
-
-# mock-webhook-request.py
-
-`mock-webhook-request.py` sends a fake webhook request to the
-provided webhook URL.
-
-To run:
-
-```console
-python3 mock-webhook-request.py http://localhost:1276/webhook
-```
-
-`mock-webhook-request.py` will send a single request to the Discordata webhook
-URL and then exit.
