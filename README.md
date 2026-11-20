@@ -5,7 +5,9 @@ webhook request is received, Discordata formats a Discord
 and sends it via the Discord webhook URL.
 
 Discord data can be run as a standalone application or as a
-docker container. 
+docker container. In both cases the Flask application is served by
+[Gunicorn](https://gunicorn.org/), a production-grade WSGI server,
+rather than Flask's built-in development server.
 
 By default Discordata will listen on port `1276` for requests
 to the `webhook` endpoint. Port 1276 must be opened and forwarded
@@ -51,7 +53,7 @@ Two environment variables are required to be exported to Discordata in order to 
 
 ### Optional Environment Variables
 
-Two additional environment variables may be set to modify default behaviors:
+Additional environment variables may be set to modify default behaviors:
 
 - `ALLOWED_IPS` - Comma-delimited list of IP addresses or subnets
   from which requests will be accepted. Defaults to `0.0.0.0`.
@@ -59,6 +61,17 @@ Two additional environment variables may be set to modify default behaviors:
   this is the internal port on which Discordata is listening. The
   external port can be adjusted with the `-p` flag on the run
   command. Defaults to `1276`.
+- `HOST` - IP address on which Discordata will listen. Defaults to `0.0.0.0`.
+- `CERT_PATH` / `KEY_PATH` - Paths to the TLS certificate and key.
+  Default to `certs/cert.pem` and `certs/key.pem`.
+- `LOG_LEVEL` - One of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
+  Defaults to `INFO`.
+- `WORKERS` - Number of Gunicorn worker processes. Defaults to `2`.
+- `THREADS` - Number of threads per Gunicorn worker. Defaults to `4`.
+
+Each of these can also be passed as a command-line flag to
+`discordata.py` (`--host`, `--port`, `--cert`, `--key`, `--log-level`,
+`--workers`, `--threads`). Run `python3 discordata.py --help` for details.
 
 ### Set Environment Variables in .env
 
@@ -106,13 +119,22 @@ Otherwise, place your organization's `cert.pem` and `key.pem` file in the `certs
 ### Install Python Packages
 
 ```console
-pip3 install flask flask-talisman requests
+pip3 install -r requirements.txt
 ```
 
 ### Run discordata.sh
 
 ```console
 ./discordata.sh
+```
+
+`discordata.sh` loads `.env` and starts `discordata.py`, which runs the app
+under Gunicorn with TLS enabled. Alternatively, Gunicorn can be invoked
+directly, for example:
+
+```console
+gunicorn --bind 0.0.0.0:1276 --certfile certs/cert.pem --keyfile certs/key.pem \
+    --workers 2 --threads 4 --timeout 120 --access-logfile - discordata:app
 ```
 
 # mock-webhook-request.py
@@ -127,4 +149,4 @@ python3 mock-webhook-request.py http://localhost:1276/webhook
 ```
 
 `mock-webhook-request.py` will send a single request to the Discordata webhook
-URL and then exit.
+URL and then exit.

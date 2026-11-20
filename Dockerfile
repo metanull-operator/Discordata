@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 # Set the working directory to /app
 WORKDIR /app
@@ -19,6 +19,6 @@ ENV PORT=1276
 # Expose the port defined in the environment variable
 EXPOSE ${PORT}
 
-# Run the Flask app using environment variables for configuration
+# Run the Flask app under Gunicorn using environment variables for configuration
 ENTRYPOINT ["python", "discordata.py"]
 CMD ["--key", "/certs/key.pem", "--cert", "/certs/cert.pem"]

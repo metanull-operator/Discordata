@@ -10,6 +10,7 @@ import ipaddress
 import logging
 import time
 import argparse
+from gunicorn.app.base import BaseApplication
 
 HMAC_HEADER_NAME = 'x-payload-digest'
 SUMSUB_BASE_URL = "https://api.sumsub.com"
@@ -28,32 +29,13 @@ ALLOWED_REVIEW_ANSWERS = [
 app = Flask(__name__)
 Talisman(app)  # Adds HTTPS and security headers
 
-# Parse command-line arguments
-parser = argparse.ArgumentParser(description='Run the Discordata Flask application.')
-parser.add_argument('--host', type=str, default=os.environ.get('HOST', '0.0.0.0'),
-                    help='The IP address to bind to (default: from HOST env var or 0.0.0.0)')
-parser.add_argument('--port', type=int, default=int(os.environ.get('PORT', 1276)),
-                    help='The port number to listen on (default: from PORT env var or 1276)')
-parser.add_argument('--cert', type=str, default=os.environ.get('CERT_PATH', 'certs/cert.pem'),
-                    help='Path to the SSL certificate file (default: from CERT_PATH env var)')
-parser.add_argument('--key', type=str, default=os.environ.get('KEY_PATH', 'certs/key.pem'),
-                    help='Path to the SSL key file (default: from KEY_PATH env var)')
-parser.add_argument('--log-level', type=str, default=os.environ.get('LOG_LEVEL', 'INFO').upper(),
-                    choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-                    help='Set the log level (default: from LOG_LEVEL env var or INFO)')
-args = parser.parse_args()
-
-# Use command-line arguments or environment variables for configurations
-host = args.host
-port = args.port
-cert_path = args.cert
-key_path = args.key
-log_level = args.log_level
-
-# Configure logging
-logging.basicConfig(level=log_level)
+# Configure logging. LOG_LEVEL is read from the environment at import time so
+# the level also applies when the app is loaded directly by a WSGI server
+# (e.g. `gunicorn discordata:app`). The --log-level flag can override it.
+LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
+logging.basicConfig(level=LOG_LEVEL)
 logger = logging.getLogger('werkzeug')  # Get the default Flask logger
-logger.setLevel(log_level)
+logger.setLevel(LOG_LEVEL)
 
 # Get secrets from environment variables
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
@@ -268,6 +250,62 @@ def send_to_discord(message):
     if response.status_code != 204:
         logger.error(f'Failed to send message to Discord: {response.text}')
 
+class DiscordataServer(BaseApplication):
+    """Run the Flask app under Gunicorn, a production-grade WSGI server."""
+
+    def __init__(self, application, options=None):
+        self.options = options or {}
+        self.application = application
+        super().__init__()
+
+    def load_config(self):
+        for key, value in self.options.items():
+            if key in self.cfg.settings and value is not None:
+                self.cfg.set(key.lower(), value)
+
+    def load(self):
+        return self.application
+
+
+def parse_args():
+    """Parse command-line arguments, falling back to environment variables."""
+    parser = argparse.ArgumentParser(description='Run the Discordata Flask application.')
+    parser.add_argument('--host', type=str, default=os.environ.get('HOST', '0.0.0.0'),
+                        help='The IP address to bind to (default: from HOST env var or 0.0.0.0)')
+    parser.add_argument('--port', type=int, default=int(os.environ.get('PORT', 1276)),
+                        help='The port number to listen on (default: from PORT env var or 1276)')
+    parser.add_argument('--cert', type=str, default=os.environ.get('CERT_PATH', 'certs/cert.pem'),
+                        help='Path to the SSL certificate file (default: from CERT_PATH env var)')
+    parser.add_argument('--key', type=str, default=os.environ.get('KEY_PATH', 'certs/key.pem'),
+                        help='Path to the SSL key file (default: from KEY_PATH env var)')
+    parser.add_argument('--log-level', type=str, default=LOG_LEVEL,
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                        help='Set the log level (default: from LOG_LEVEL env var or INFO)')
+    parser.add_argument('--workers', type=int, default=int(os.environ.get('WORKERS', 2)),
+                        help='Number of Gunicorn worker processes (default: from WORKERS env var or 2)')
+    parser.add_argument('--threads', type=int, default=int(os.environ.get('THREADS', 4)),
+                        help='Number of threads per worker (default: from THREADS env var or 4)')
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
-    # Run the Flask app with command-line arguments or environment variable configurations
-    app.run(ssl_context=(cert_path, key_path), host=host, port=port)
+    args = parse_args()
+
+    logging.getLogger().setLevel(args.log_level)
+    logger.setLevel(args.log_level)
+
+    options = {
+        'bind': f'{args.host}:{args.port}',
+        'certfile': args.cert,
+        'keyfile': args.key,
+        'workers': args.workers,
+        'threads': args.threads,
+        # The webhook handler calls the Sumsub API with a REQUEST_TIMEOUT-second
+        # timeout, so give workers enough headroom not to be killed mid-request.
+        'timeout': REQUEST_TIMEOUT * 2,
+        'loglevel': args.log_level.lower(),
+        # Log each request to stdout, as the Flask development server did.
+        'accesslog': '-',
+        'errorlog': '-',
+    }
+    DiscordataServer(app, options).run()
