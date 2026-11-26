@@ -10,11 +10,11 @@ import ipaddress
 import logging
 import time
 import argparse
-from eth_account.messages import encode_defunct
-from eth_account import Account
 import threading
 import random
 import string
+
+import signature_verification
 
 HMAC_HEADER_NAME = 'x-payload-digest'
 SUMSUB_BASE_URL = "https://api.sumsub.com"
@@ -57,6 +57,14 @@ parser.add_argument('--log-level', type=str, default=os.environ.get('LOG_LEVEL',
                     help='Set the log level (default: from LOG_LEVEL env var or INFO)')
 parser.add_argument('--signature-message', type=str, default=os.environ.get('SIGNATURE_MESSAGE', None),
                     help='Message that must be signed by the owner address. Maybe be omitted to turn off signature checking.')
+parser.add_argument('--eth-rpc-url', type=str, default=os.environ.get('ETH_RPC_URL', None),
+                    help='Ethereum mainnet JSON-RPC URL, used to check smart contract wallet (e.g. Safe) signatures. '
+                         'If omitted, only plain wallet (EOA) signatures can pass.')
+parser.add_argument('--contract-wallet-policy', type=str,
+                    default=os.environ.get('CONTRACT_WALLET_POLICY', signature_verification.DEFAULT_POLICY),
+                    help='How to judge smart contract wallet signatures: '
+                         f'{", ".join(signature_verification.POLICIES)} (default: from CONTRACT_WALLET_POLICY env var '
+                         f'or {signature_verification.DEFAULT_POLICY}). See README.')
 parser.add_argument('--acceptable-risk-score', type=int, default=os.environ.get('ACCEPTABLE_RISK_SCORE', 20),
                     help='Minimum address risk score required')
 parser.add_argument('--polling-max-retries', type=int, default=os.environ.get('POLLING_MAX_RETRIES', 10),
@@ -72,6 +80,10 @@ cert_path = args.cert
 key_path = args.key
 log_level = args.log_level
 signature_message = args.signature_message
+eth_rpc_url = args.eth_rpc_url
+# Checked here, not by argparse: argparse does not check environment defaults against choices, and an
+# unknown policy would otherwise make every signature check fail later.
+contract_wallet_policy = signature_verification.normalise_policy(args.contract_wallet_policy)
 polling_max_retries = args.polling_max_retries
 polling_delay = args.polling_delay
 acceptable_risk_score = args.acceptable_risk_score
@@ -232,7 +244,7 @@ def process_webhook_data(applicant_id, data):
 
                 if is_valid_signature:
                     address_score = get_address_score(applicant_id, wallet_address)
-                    if address_score <= acceptable_risk_score:
+                    if address_score is not None and address_score <= acceptable_risk_score:
                         add_custom_tags(applicant_id, ['Verified Wallet'])
                 else:
                     add_custom_tags(applicant_id, ['Invalid Hash'])
@@ -500,23 +512,17 @@ def sign_request(request: requests.Request) -> requests.PreparedRequest:
 
 
 def verify_ethereum_signature(message, signature, expected_address):
-
+    """True if expected_address signed message. Handles plain wallets and smart contract wallets (e.g. Safe)."""
     logger.debug(f"Verifying signature against message: -{message}-")
     logger.debug(f"Signature hash: -{signature}-")
     logger.debug(f"Expected address: -{expected_address}-")
 
-    try:
-        # Prepare the message for signing
-        message_encoded = encode_defunct(text=message)
-
-        # Recover the address from the signature
-        recovered_address = Account.recover_message(message_encoded, signature=signature)
-
-        # Compare the recovered address with the expected address
-        return recovered_address.lower() == expected_address.lower()
-    except Exception as e:
-        logger.error(f"Error verifying signature: {e}")
-        return False
+    result = signature_verification.verify_wallet_signature(
+        message, signature, expected_address, rpc_url=eth_rpc_url, policy=contract_wallet_policy
+    )
+    # The reason goes to the log only; the Discord message stays a plain pass/fail.
+    logger.info(f"Signature check for {expected_address}: {result.status} ({result.wallet_type}: {result.detail})")
+    return result.is_valid
 
 
 def send_to_discord(message):

@@ -66,6 +66,8 @@ Two additional environment variables may be set to modify default behaviors:
 - `KEY_PATH` - Path to the SSL key file.
 - `LOG_LEVEL` - Level of log messages to output. Allowed values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, and `CRITICAL`. Defaults to `INFO`.
 - `SIGNATURE_MESSAGE` - The message to be signed by the applicant's Ethereum address. Used to verify the signature. Signature verification is skipped if this value is not present.
+- `ETH_RPC_URL` - Ethereum mainnet JSON-RPC URL, for example your own execution client (`http://127.0.0.1:8545`). Needed to check signatures from smart contract wallets such as Safe. Without it, only plain wallet (EOA) signatures can pass, and every smart contract wallet shows ❌.
+- `CONTRACT_WALLET_POLICY` - How smart contract wallet signatures are judged. One of `strict`, `any_owner` or `single_owner`. Defaults to `strict`. See [Smart contract wallets](#smart-contract-wallets-safe).
 - `ACCEPTABLE_RISK_SCORE` - The maximum risk score allowed to pass the Ethereum address risk review. All scores less than or equal to this value pass the review. Defaults to `20`.
 - `POLLING_MAX_RETRIES` - Maximum number of attempts to retrieve the Ethereum address risk score. Defaults to `10`.
 - `POLLING_DELAY` - The number of seconds between attempts to retrieve the Ethereum address risk score. Defaults to  `5`.
@@ -116,7 +118,7 @@ Otherwise, place your organization's `cert.pem` and `key.pem` file in the `certs
 ### Install Python Packages
 
 ```console
-pip3 install flask flask-talisman requests eth_account
+pip3 install -r requirements.txt
 ```
 
 ### Run discordata.sh
@@ -124,3 +126,32 @@ pip3 install flask flask-talisman requests eth_account
 ```console
 WEBHOOK_SECRET="webhook secret" DISCORD_WEBHOOK_URL="discord webhook url" SUMSUB_SECRET_KEY="sumsub secret key" SUMSUB_APP_TOKEN="sumsub app token" ./discordata.sh --cert certs/cert.pem --key certs/key.pem --signature-message "Sign this message"
 ```
+
+## Hash Status
+
+When a review is GREEN, the Discord message shows whether the applicant's wallet signed `SIGNATURE_MESSAGE`:
+
+| Hash Status | Meaning | Sumsub tag |
+| --- | --- | --- |
+| ✅ | Signature is valid. The wallet risk score is then requested. | `Verified Wallet` if the risk score is at or below `ACCEPTABLE_RISK_SCORE` |
+| ❌ | Signature is not valid, there was no signature to check, or it could not be confirmed (for example the RPC was unreachable). | `Invalid Hash` |
+
+The message format is fixed: Hash Status is only ✅ or ❌. The reason for each result is written to the log at
+`INFO` level, for example `Signature check for 0x…: invalid (Smart contract: Contract wallet rejected the signature (EIP-1271))`.
+
+## Smart contract wallets (Safe)
+
+A Safe has no private key. Its owners sign a wrapped version of the message, and the Safe contract decides
+whether those signatures are enough (EIP-1271 `isValidSignature`). A plain signature check can never pass for a
+Safe, so Discordata asks the contract over `ETH_RPC_URL`. `CONTRACT_WALLET_POLICY` sets the rule:
+
+| Policy | ✅ when | Use it if |
+| --- | --- | --- |
+| `strict` (default) | The Safe accepts the signature (its threshold is met). | You want the same rule wallets, dapps and Etherscan use. |
+| `any_owner` | The Safe accepts it, or any one owner signed. | One owner's signature is enough proof of control for you. |
+| `single_owner` | The Safe accepts it and its threshold is 1. | You only want Safes that one person fully controls. |
+
+Everything else is ❌, including when `ETH_RPC_URL` is unreachable.
+
+Plain wallets (EOAs) are checked offline and are not affected by the policy. Only Ethereum mainnet is checked.
+
