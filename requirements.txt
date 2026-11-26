@@ -1,3 +1,6 @@
 flask
 flask-talisman
 requests
+eth-account
+eth-abi
+eth-utils

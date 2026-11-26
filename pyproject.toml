@@ -1,0 +1,28 @@
+# Tool configuration only. Discordata is run as a script, not installed as a package.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["discordata", "signature_verification"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 90
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+extend-exclude = [".venv", "venv"]
+
+[tool.ruff.lint]
+# pycodestyle errors/warnings, pyflakes, and flake8-bugbear.
+select = ["E", "F", "W", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Existing findings in files this change doesn't touch. Drop each entry once the code is fixed.
+"discordata.py" = ["E721", "E501"]  # `type(body) == str` in sign_request; long --help strings
